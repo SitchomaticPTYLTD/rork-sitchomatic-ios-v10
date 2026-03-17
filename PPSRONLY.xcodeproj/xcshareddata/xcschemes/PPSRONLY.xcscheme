@@ -17,8 +17,8 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "105FC5792E9EAD3100EA8BCF"
                BuildableName = "DualModeCarCheckApp.app"
-               BlueprintName = "SitchomaticIOSV10"
-               ReferencedContainer = "container:SitchomaticIOSV10.xcodeproj">
+               BlueprintName = "PPSRONLY"
+               ReferencedContainer = "container:PPSRONLY.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -37,8 +37,8 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "105FC5882E9EAD3200EA8BCF"
                BuildableName = "DualModeCarCheckAppTests.xctest"
-               BlueprintName = "SitchomaticIOSV10"
-               ReferencedContainer = "container:SitchomaticIOSV10.xcodeproj">
+               BlueprintName = "PPSRONLY"
+               ReferencedContainer = "container:PPSRONLY.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -48,8 +48,8 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "105FC5922E9EAD3200EA8BCF"
                BuildableName = "DualModeCarCheckAppUITests.xctest"
-               BlueprintName = "SitchomaticIOSV10"
-               ReferencedContainer = "container:SitchomaticIOSV10.xcodeproj">
+               BlueprintName = "PPSRONLY"
+               ReferencedContainer = "container:PPSRONLY.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -70,8 +70,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "105FC5792E9EAD3100EA8BCF"
             BuildableName = "DualModeCarCheckApp.app"
-            BlueprintName = "SitchomaticIOSV10"
-            ReferencedContainer = "container:SitchomaticIOSV10.xcodeproj">
+            BlueprintName = "PPSRONLY"
+            ReferencedContainer = "container:PPSRONLY.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -87,8 +87,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "105FC5792E9EAD3100EA8BCF"
             BuildableName = "DualModeCarCheckApp.app"
-            BlueprintName = "SitchomaticIOSV10"
-            ReferencedContainer = "container:SitchomaticIOSV10.xcodeproj">
+            BlueprintName = "PPSRONLY"
+            ReferencedContainer = "container:PPSRONLY.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
