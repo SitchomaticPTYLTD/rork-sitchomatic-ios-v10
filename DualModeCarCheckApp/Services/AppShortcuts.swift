@@ -31,30 +31,6 @@ nonisolated struct OpenPPSRModeIntent: AppIntent {
     }
 }
 
-nonisolated struct OpenJoeModeIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open Joe Mode"
-    static var description: IntentDescription = "Open the Joe Fortune login testing mode"
-    static var openAppWhenRun: Bool = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        UserDefaults.standard.set("joe", forKey: "activeAppMode")
-        return .result()
-    }
-}
-
-nonisolated struct OpenIgnitionModeIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open Ignition Mode"
-    static var description: IntentDescription = "Open the Ignition Casino login testing mode"
-    static var openAppWhenRun: Bool = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        UserDefaults.standard.set("ignition", forKey: "activeAppMode")
-        return .result()
-    }
-}
-
 nonisolated struct OpenNordConfigIntent: AppIntent {
     static var title: LocalizedStringResource = "Open NordLynx Config"
     static var description: IntentDescription = "Open the NordLynx VPN config generator"
@@ -87,22 +63,6 @@ nonisolated struct DualModeAppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Open PPSR",
             systemImageName: "bolt.shield.fill"
-        )
-        AppShortcut(
-            intent: OpenJoeModeIntent(),
-            phrases: [
-                "Open Joe mode in \(.applicationName)"
-            ],
-            shortTitle: "Open Joe",
-            systemImageName: "flame.fill"
-        )
-        AppShortcut(
-            intent: OpenIgnitionModeIntent(),
-            phrases: [
-                "Open Ignition mode in \(.applicationName)"
-            ],
-            shortTitle: "Open Ignition",
-            systemImageName: "flame.circle.fill"
         )
         AppShortcut(
             intent: OpenNordConfigIntent(),

@@ -129,7 +129,7 @@ struct IPScoreTestView: View {
 
                 Spacer()
 
-                let mode = proxyService.connectionMode(for: .joe)
+                let mode = proxyService.connectionMode(for: .ppsr)
                 HStack(spacing: 4) {
                     Image(systemName: mode.icon)
                         .font(.system(size: 10, weight: .bold))
@@ -233,10 +233,10 @@ struct IPScoreTestView: View {
                 .multilineTextAlignment(.center)
 
             VStack(alignment: .leading, spacing: 8) {
-                networkInfoRow(icon: proxyService.connectionMode(for: .joe).icon, label: "Mode", value: proxyService.connectionMode(for: .joe).label)
+                networkInfoRow(icon: proxyService.connectionMode(for: .ppsr).icon, label: "Mode", value: proxyService.connectionMode(for: .ppsr).label)
                 networkInfoRow(icon: "server.rack", label: "Nord Servers", value: "\(nordService.recommendedServers.count) loaded")
                 networkInfoRow(icon: "network", label: "Proxies", value: "\(proxyService.savedProxies.count) configured")
-                networkInfoRow(icon: "lock.shield.fill", label: "WireGuard", value: "\(proxyService.joeWGConfigs.count) configs")
+                networkInfoRow(icon: "lock.shield.fill", label: "WireGuard", value: "\(proxyService.ppsrWGConfigs.count) configs")
             }
             .padding()
             .background(Color(.secondarySystemGroupedBackground))
@@ -288,8 +288,8 @@ struct IPScoreTestView: View {
         NavigationStack {
             List {
                 Section("Connection Mode") {
-                    LabeledContent("Joe") { Text(proxyService.networkSummary(for: .joe)) }
-                    LabeledContent("Ignition") { Text(proxyService.networkSummary(for: .ignition)) }
+                    LabeledContent("PPSR") { Text(proxyService.networkSummary(for: .ppsr)) }
+                    
                 }
 
                 Section("NordVPN") {
@@ -304,8 +304,8 @@ struct IPScoreTestView: View {
                 }
 
                 Section("VPN Configs") {
-                    LabeledContent("OpenVPN") { Text("\(proxyService.joeVPNConfigs.count)") }
-                    LabeledContent("WireGuard") { Text("\(proxyService.joeWGConfigs.count)") }
+                    LabeledContent("OpenVPN") { Text("\(proxyService.ppsrVPNConfigs.count)") }
+                    LabeledContent("WireGuard") { Text("\(proxyService.ppsrWGConfigs.count)") }
                 }
 
                 if !sessions.isEmpty {
@@ -355,7 +355,7 @@ struct IPScoreTestView: View {
         isRunning = true
         timerTick = 0
 
-        let connectionMode = proxyService.connectionMode(for: .joe)
+        let connectionMode = proxyService.connectionMode(for: .ppsr)
 
         for i in 0..<sessionCount {
             let session = IPScoreSession(index: i + 1)
@@ -384,7 +384,7 @@ struct IPScoreTestView: View {
     private func assignNetworkToSession(_ session: IPScoreSession, index: Int, mode: ConnectionMode) {
         switch mode {
         case .proxy:
-            if let proxy = proxyService.nextWorkingProxy(for: .joe) {
+            if let proxy = proxyService.nextWorkingProxy(for: .ppsr) {
                 session.assignedProxy = proxy.displayString
                 session.networkLabel = "SOCKS5 \(proxy.host):\(proxy.port)"
             } else if !proxyService.savedProxies.isEmpty {
@@ -396,7 +396,7 @@ struct IPScoreTestView: View {
             }
 
         case .wireguard:
-            if let wg = proxyService.nextEnabledWGConfig(for: .joe) {
+            if let wg = proxyService.nextEnabledWGConfig(for: .ppsr) {
                 session.assignedVPNServer = wg.fileName
                 session.assignedVPNIP = wg.peerEndpoint
                 session.networkLabel = "WG \(wg.fileName)"
@@ -408,7 +408,7 @@ struct IPScoreTestView: View {
             }
 
         case .openvpn:
-            if let ovpn = proxyService.nextEnabledOVPNConfig(for: .joe) {
+            if let ovpn = proxyService.nextEnabledOVPNConfig(for: .ppsr) {
                 session.assignedVPNServer = ovpn.fileName
                 session.assignedVPNIP = ovpn.remoteHost
                 session.networkLabel = "OVPN \(ovpn.fileName)"

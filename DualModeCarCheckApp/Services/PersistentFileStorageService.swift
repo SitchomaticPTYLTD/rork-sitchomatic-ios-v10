@@ -15,17 +15,15 @@ class PersistentFileStorageService {
     }
 
     private var configURL: URL { rootURL.appendingPathComponent("config") }
-    private var credentialsURL: URL { rootURL.appendingPathComponent("credentials") }
     private var cardsURL: URL { rootURL.appendingPathComponent("cards") }
     private var networkURL: URL { rootURL.appendingPathComponent("network") }
     private var screenshotsURL: URL { rootURL.appendingPathComponent("screenshots") }
     private var debugURL: URL { rootURL.appendingPathComponent("debug") }
     private var stateURL: URL { rootURL.appendingPathComponent("state") }
-    private var flowsURL: URL { rootURL.appendingPathComponent("flows") }
     private var backupsURL: URL { rootURL.appendingPathComponent("backups") }
 
     private var allDirectories: [URL] {
-        [rootURL, configURL, credentialsURL, cardsURL, networkURL, screenshotsURL, debugURL, stateURL, flowsURL, backupsURL]
+        [rootURL, configURL, cardsURL, networkURL, screenshotsURL, debugURL, stateURL, backupsURL]
     }
 
     private var lastSaveDate: Date?
@@ -43,8 +41,6 @@ class PersistentFileStorageService {
         }
     }
 
-    // MARK: - Full State Save
-
     func saveFullState() {
         if let last = lastSaveDate, Date().timeIntervalSince(last) < minSaveInterval { return }
         lastSaveDate = Date()
@@ -52,12 +48,9 @@ class PersistentFileStorageService {
         logger.log("PersistentStorage: starting full state save", category: .persistence, level: .info)
 
         saveConfigSnapshot()
-        saveCredentials()
         saveCards()
         saveNetworkConfigs()
-        saveAutomationSettings()
         saveDebugLogs()
-        saveRecordedFlows()
         saveAppState()
         saveScreenshotManifest()
 
@@ -69,8 +62,6 @@ class PersistentFileStorageService {
         saveFullState()
     }
 
-    // MARK: - Full State Restore
-
     func restoreIfNeeded() -> Bool {
         let markerFile = stateURL.appendingPathComponent("restore_marker.json")
         let configFile = configURL.appendingPathComponent("full_config.json")
@@ -80,8 +71,7 @@ class PersistentFileStorageService {
             return false
         }
 
-        let hasExistingData = LoginPersistenceService.shared.loadCredentials().count > 0
-            || PPSRPersistenceService.shared.loadCards().count > 0
+        let hasExistingData = PPSRPersistenceService.shared.loadCards().count > 0
 
         if hasExistingData {
             if fileManager.fileExists(atPath: markerFile.path),
@@ -122,8 +112,6 @@ class PersistentFileStorageService {
         return true
     }
 
-    // MARK: - Config Snapshot (Comprehensive JSON)
-
     private func saveConfigSnapshot() {
         let json = AppDataExportService.shared.exportJSON()
         let file = configURL.appendingPathComponent("full_config.json")
@@ -134,43 +122,6 @@ class PersistentFileStorageService {
 
         pruneOldFiles(in: configURL, prefix: "config_", keepCount: 5)
     }
-
-    // MARK: - Credentials
-
-    private func saveCredentials() {
-        let creds = LoginPersistenceService.shared.loadCredentials()
-        guard !creds.isEmpty else { return }
-
-        let exportable = creds.map { cred -> CredentialFileEntry in
-            CredentialFileEntry(
-                id: cred.id,
-                username: cred.username,
-                password: cred.password,
-                status: cred.status.rawValue,
-                addedAt: cred.addedAt.timeIntervalSince1970,
-                notes: cred.notes,
-                totalTests: cred.totalTests,
-                successCount: cred.successCount,
-                assignedPasswords: cred.assignedPasswords,
-                nextPasswordIndex: cred.nextPasswordIndex
-            )
-        }
-
-        let file = credentialsURL.appendingPathComponent("credentials.json")
-        if let data = try? JSONEncoder().encode(exportable) {
-            try? data.write(to: file)
-        }
-
-        let workingFile = credentialsURL.appendingPathComponent("working.txt")
-        let working = creds.filter { $0.isWorking }.map { $0.exportFormat }.joined(separator: "\n")
-        try? working.data(using: .utf8)?.write(to: workingFile)
-
-        let allFile = credentialsURL.appendingPathComponent("all_credentials.txt")
-        let all = creds.map { "\($0.exportFormat) | \($0.status.rawValue)" }.joined(separator: "\n")
-        try? all.data(using: .utf8)?.write(to: allFile)
-    }
-
-    // MARK: - Cards
 
     private func saveCards() {
         let cards = PPSRPersistenceService.shared.loadCards()
@@ -194,30 +145,15 @@ class PersistentFileStorageService {
         }
     }
 
-    // MARK: - Network
-
     private func saveNetworkConfigs() {
         let proxyService = ProxyRotationService.shared
         let dnsService = PPSRDoHService.shared
-        let urlService = LoginURLRotationService.shared
 
         var networkState = NetworkFileState()
-        networkState.joeURLCount = urlService.joeURLs.count
-        networkState.ignitionURLCount = urlService.ignitionURLs.count
-        networkState.joeEnabledURLCount = urlService.joeURLs.filter(\.isEnabled).count
-        networkState.ignitionEnabledURLCount = urlService.ignitionURLs.filter(\.isEnabled).count
-        networkState.joeProxyCount = proxyService.savedProxies.count
-        networkState.ignitionProxyCount = proxyService.ignitionProxies.count
         networkState.ppsrProxyCount = proxyService.ppsrProxies.count
-        networkState.joeWGCount = proxyService.joeWGConfigs.count
-        networkState.ignitionWGCount = proxyService.ignitionWGConfigs.count
         networkState.ppsrWGCount = proxyService.ppsrWGConfigs.count
-        networkState.joeVPNCount = proxyService.joeVPNConfigs.count
-        networkState.ignitionVPNCount = proxyService.ignitionVPNConfigs.count
         networkState.ppsrVPNCount = proxyService.ppsrVPNConfigs.count
         networkState.dnsCount = dnsService.managedProviders.count
-        networkState.joeConnectionMode = proxyService.joeConnectionMode.rawValue
-        networkState.ignitionConnectionMode = proxyService.ignitionConnectionMode.rawValue
         networkState.ppsrConnectionMode = proxyService.ppsrConnectionMode.rawValue
         networkState.networkRegion = proxyService.networkRegion.rawValue
         networkState.savedAt = Date().timeIntervalSince1970
@@ -229,16 +165,6 @@ class PersistentFileStorageService {
             try? data.write(to: file)
         }
     }
-
-    // MARK: - Automation Settings
-
-    private func saveAutomationSettings() {
-        guard let data = UserDefaults.standard.data(forKey: "automation_settings_v1") else { return }
-        let file = configURL.appendingPathComponent("automation_settings.json")
-        try? data.write(to: file)
-    }
-
-    // MARK: - Debug Logs
 
     private func saveDebugLogs() {
         let logger = DebugLogger.shared
@@ -264,25 +190,10 @@ class PersistentFileStorageService {
         logger.log("PersistentStorage: debug logs restored from vault", category: .persistence, level: .info)
     }
 
-    // MARK: - Recorded Flows
-
-    private func saveRecordedFlows() {
-        let flows = FlowPersistenceService.shared.loadFlows()
-        guard !flows.isEmpty else { return }
-        if let data = try? JSONEncoder().encode(flows) {
-            let file = flowsURL.appendingPathComponent("recorded_flows.json")
-            try? data.write(to: file)
-        }
-    }
-
-    // MARK: - App State (UserDefaults keys & AppStorage)
-
     private func saveAppState() {
         var state = AppStateSnapshot()
         state.activeAppMode = UserDefaults.standard.string(forKey: "activeAppMode") ?? ""
         state.introVideoEnabled = UserDefaults.standard.bool(forKey: "introVideoEnabled")
-        state.hasSelectedMode = UserDefaults.standard.bool(forKey: "hasSelectedMode")
-        state.productMode = UserDefaults.standard.string(forKey: "productMode") ?? ""
         state.defaultSettingsApplied = UserDefaults.standard.bool(forKey: "default_settings_applied_v2")
         state.savedAt = Date().timeIntervalSince1970
         state.appVersion = currentAppVersion
@@ -310,8 +221,6 @@ class PersistentFileStorageService {
         }
     }
 
-    // MARK: - Screenshot Manifest
-
     private func saveScreenshotManifest() {
         let manifest = ScreenshotManifest(
             savedAt: Date().timeIntervalSince1970,
@@ -330,8 +239,6 @@ class PersistentFileStorageService {
         try? data.write(to: file)
         pruneOldFiles(in: screenshotsURL, prefix: "", keepCount: 200, extension: "jpg")
     }
-
-    // MARK: - Manual Backup
 
     func createBackup() -> URL? {
         forceSave()
@@ -356,18 +263,14 @@ class PersistentFileStorageService {
         listFiles(in: backupsURL)
     }
 
-    // MARK: - File Browser Data
-
     func getStorageSummary() -> StorageSummary {
         var summary = StorageSummary()
         summary.configFiles = listFiles(in: configURL)
-        summary.credentialFiles = listFiles(in: credentialsURL)
         summary.cardFiles = listFiles(in: cardsURL)
         summary.networkFiles = listFiles(in: networkURL)
         summary.screenshotFiles = listFiles(in: screenshotsURL)
         summary.debugFiles = listFiles(in: debugURL)
         summary.stateFiles = listFiles(in: stateURL)
-        summary.flowFiles = listFiles(in: flowsURL)
         summary.backupFiles = listFiles(in: backupsURL)
         summary.totalSize = calculateDirectorySize(rootURL)
         summary.lastSaved = lastSaveTimestamp()
@@ -405,8 +308,6 @@ class PersistentFileStorageService {
     }
 
     func shareFile(_ url: URL) -> URL { url }
-
-    // MARK: - Helpers
 
     private var currentAppVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -459,24 +360,9 @@ class PersistentFileStorageService {
     }
 }
 
-// MARK: - File Data Models
-
 nonisolated struct RestoreMarker: Codable, Sendable {
     let appVersion: String
     let restoredAt: Date
-}
-
-nonisolated struct CredentialFileEntry: Codable, Sendable {
-    let id: String
-    let username: String
-    let password: String
-    let status: String
-    let addedAt: TimeInterval
-    let notes: String
-    let totalTests: Int
-    let successCount: Int
-    let assignedPasswords: [String]
-    let nextPasswordIndex: Int
 }
 
 nonisolated struct CardFileEntry: Codable, Sendable {
@@ -490,22 +376,10 @@ nonisolated struct CardFileEntry: Codable, Sendable {
 }
 
 nonisolated struct NetworkFileState: Codable, Sendable {
-    var joeURLCount: Int = 0
-    var ignitionURLCount: Int = 0
-    var joeEnabledURLCount: Int = 0
-    var ignitionEnabledURLCount: Int = 0
-    var joeProxyCount: Int = 0
-    var ignitionProxyCount: Int = 0
     var ppsrProxyCount: Int = 0
-    var joeWGCount: Int = 0
-    var ignitionWGCount: Int = 0
     var ppsrWGCount: Int = 0
-    var joeVPNCount: Int = 0
-    var ignitionVPNCount: Int = 0
     var ppsrVPNCount: Int = 0
     var dnsCount: Int = 0
-    var joeConnectionMode: String = ""
-    var ignitionConnectionMode: String = ""
     var ppsrConnectionMode: String = ""
     var networkRegion: String = ""
     var savedAt: TimeInterval = 0
@@ -514,8 +388,6 @@ nonisolated struct NetworkFileState: Codable, Sendable {
 nonisolated struct AppStateSnapshot: Codable, Sendable {
     var activeAppMode: String = ""
     var introVideoEnabled: Bool = false
-    var hasSelectedMode: Bool = false
-    var productMode: String = ""
     var defaultSettingsApplied: Bool = false
     var savedAt: TimeInterval = 0
     var appVersion: String = ""
@@ -560,19 +432,17 @@ struct StoredFileInfo: Identifiable {
 
 struct StorageSummary {
     var configFiles: [StoredFileInfo] = []
-    var credentialFiles: [StoredFileInfo] = []
     var cardFiles: [StoredFileInfo] = []
     var networkFiles: [StoredFileInfo] = []
     var screenshotFiles: [StoredFileInfo] = []
     var debugFiles: [StoredFileInfo] = []
     var stateFiles: [StoredFileInfo] = []
-    var flowFiles: [StoredFileInfo] = []
     var backupFiles: [StoredFileInfo] = []
     var totalSize: Int64 = 0
     var lastSaved: Date?
 
     var totalFileCount: Int {
-        configFiles.count + credentialFiles.count + cardFiles.count + networkFiles.count + screenshotFiles.count + debugFiles.count + stateFiles.count + flowFiles.count + backupFiles.count
+        configFiles.count + cardFiles.count + networkFiles.count + screenshotFiles.count + debugFiles.count + stateFiles.count + backupFiles.count
     }
 
     var formattedTotalSize: String {
@@ -582,13 +452,11 @@ struct StorageSummary {
     var sections: [(title: String, icon: String, color: String, files: [StoredFileInfo])] {
         [
             ("Configuration", "gearshape.fill", "blue", configFiles),
-            ("Credentials", "person.badge.key.fill", "green", credentialFiles),
             ("Cards", "creditcard.fill", "cyan", cardFiles),
             ("Network", "network", "orange", networkFiles),
             ("Screenshots", "camera.fill", "purple", screenshotFiles),
             ("Debug Logs", "doc.text.magnifyingglass", "red", debugFiles),
             ("App State", "cpu", "indigo", stateFiles),
-            ("Recorded Flows", "record.circle.fill", "pink", flowFiles),
             ("Backups", "arrow.clockwise.icloud.fill", "teal", backupFiles),
         ]
     }

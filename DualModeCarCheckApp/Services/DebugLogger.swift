@@ -454,8 +454,8 @@ class DebugLogger {
         return fileURL
     }
 
-    func exportDiagnosticReportToFile(credentials: [LoginCredential] = [], automationSettings: AutomationSettings? = nil) -> URL? {
-        let content = exportDiagnosticReport(credentials: credentials, automationSettings: automationSettings)
+    func exportDiagnosticReportToFile() -> URL? {
+        let content = exportDiagnosticReport()
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         let fileName = "diagnostic_report_\(DateFormatters.exportTimestamp.string(from: Date()).replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: ":", with: "-")).txt"
@@ -572,10 +572,10 @@ class DebugLogger {
         return (try? JSONDecoder().decode([DebugLogEntry].self, from: data)) ?? []
     }
 
-    func exportDiagnosticReport(credentials: [LoginCredential] = [], automationSettings: AutomationSettings? = nil) -> String {
+    func exportDiagnosticReport() -> String {
         let now = DateFormatters.fullTimestamp.string(from: Date())
 
-        var report = """
+        let report = """
         ========================================
         DIAGNOSTIC REPORT FOR RORK MAX
         Generated: \(now)
@@ -590,45 +590,6 @@ class DebugLogger {
         - Critical: \(criticalCount)
         - Healing Success Rate: \(String(format: "%.0f%%", healingSuccessRate * 100))
 
-        CREDENTIAL SUMMARY:
-        - Total: \(credentials.count)
-        - Working: \(credentials.filter { $0.status == .working }.count)
-        - No Acc: \(credentials.filter { $0.status == .noAcc }.count)
-        - Perm Disabled: \(credentials.filter { $0.status == .permDisabled }.count)
-        - Temp Disabled: \(credentials.filter { $0.status == .tempDisabled }.count)
-        - Unsure: \(credentials.filter { $0.status == .unsure }.count)
-        - Untested: \(credentials.filter { $0.status == .untested }.count)
-
-        DEBUG LOGIN BUTTON CONFIGS:
-        \(debugButtonConfigSummary())
-
-        CALIBRATION DATA:
-        \(calibrationSummary())
-
-        """
-
-        if let settings = automationSettings {
-            report += """
-            AUTOMATION SETTINGS:
-            - Login Button Mode: \(settings.loginButtonDetectionMode.rawValue)
-            - Click Method: \(settings.loginButtonClickMethod.rawValue)
-            - Max Concurrency: \(settings.maxConcurrency)
-            - Stealth JS: \(settings.stealthJSInjection)
-            - Fingerprint Spoof: \(settings.fingerprintSpoofing)
-            - Session Isolation: \(settings.sessionIsolation.rawValue)
-            - Page Load Timeout: \(Int(settings.pageLoadTimeout))s
-            - Submit Retries: \(settings.submitRetryCount)
-            - Max Submit Cycles: \(settings.maxSubmitCycles)
-            - Pattern Learning: \(settings.patternLearningEnabled)
-            - Vision ML Fallback: \(settings.fallbackToVisionMLClick)
-            - Coordinate Fallback: \(settings.fallbackToCoordinateClick)
-            - OCR Fallback: \(settings.fallbackToOCRClick)
-            - URL Flow Assignments: \(settings.urlFlowAssignments.count)
-
-            """
-        }
-
-        report += """
         CATEGORY BREAKDOWN:
         \(categoryBreakdown.map { "  - \($0.category.rawValue): \($0.count)" }.joined(separator: "\n"))
 
@@ -661,26 +622,5 @@ class DebugLogger {
         """
 
         return report
-    }
-
-    private func debugButtonConfigSummary() -> String {
-        let configs = DebugLoginButtonService.shared.configs
-        if configs.isEmpty { return "  No saved debug login button configs" }
-        return configs.map { host, config in
-            let method = config.successfulMethod?.methodName ?? "none"
-            let confirmed = config.userConfirmed ? "USER" : "AUTO"
-            return "  - \(host): \(method) [\(confirmed)] attempts=\(config.totalAttempts)"
-        }.joined(separator: "\n")
-    }
-
-    private func calibrationSummary() -> String {
-        let cals = LoginCalibrationService.shared.calibrations
-        if cals.isEmpty { return "  No calibration data" }
-        return cals.map { host, cal in
-            let email = cal.emailField?.cssSelector ?? "none"
-            let pass = cal.passwordField?.cssSelector ?? "none"
-            let btn = cal.loginButton?.cssSelector ?? "none"
-            return "  - \(host): email=\(email) pass=\(pass) btn=\(btn) confidence=\(String(format: "%.0f%%", cal.confidence * 100)) success=\(cal.successCount) fail=\(cal.failCount)"
-        }.joined(separator: "\n")
     }
 }

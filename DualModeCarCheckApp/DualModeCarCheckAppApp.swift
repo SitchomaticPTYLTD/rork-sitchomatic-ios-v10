@@ -20,30 +20,16 @@ struct DualModeCarCheckAppApp: App {
                 } else if let mode = activeMode {
                     Group {
                         switch mode {
-                        case .joe:
-                            LoginContentView(initialMode: .joe)
-                        case .ignition:
-                            LoginContentView(initialMode: .ignition)
                         case .ppsr:
                             ContentView()
-                        case .superTest:
-                            SuperTestContainerView()
                         case .debugLog:
                             NavigationStack {
                                 DebugLogView()
                             }
                             .withMainMenuButton()
                             .preferredColorScheme(.dark)
-                        case .flowRecorder:
-                            NavigationStack {
-                                FlowRecorderView()
-                            }
-                            .withMainMenuButton()
-                            .preferredColorScheme(.dark)
                         case .nordConfig:
                             NordLynxConfigView()
-                        case .splitTest:
-                            DualWebStackView()
                         case .vault:
                             NavigationStack {
                                 StorageFileBrowserView()
@@ -52,8 +38,6 @@ struct DualModeCarCheckAppApp: App {
                             .preferredColorScheme(.dark)
                         case .ipScoreTest:
                             IPScoreTestView()
-                        case .dualFind:
-                            DualFindContainerView()
                         }
                     }
                     .transition(.asymmetric(
