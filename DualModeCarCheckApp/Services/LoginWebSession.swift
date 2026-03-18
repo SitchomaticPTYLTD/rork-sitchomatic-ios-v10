@@ -307,9 +307,10 @@ private class NavigationDelegate: NSObject, WKNavigationDelegate {
     }
 
     nonisolated func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse) async -> WKNavigationResponsePolicy {
-        if let http = navigationResponse.response as? HTTPURLResponse {
-            Task { @MainActor in
-                self.completion(false, nil, http.statusCode)
+        let statusCode = (navigationResponse.response as? HTTPURLResponse)?.statusCode
+        if let statusCode {
+            await MainActor.run {
+                self.completion(false, nil, statusCode)
             }
         }
         return .allow
