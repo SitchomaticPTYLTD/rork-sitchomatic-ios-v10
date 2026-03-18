@@ -314,9 +314,11 @@ private class NavigationDelegate: NSObject, WKNavigationDelegate {
         }
     }
 
-    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-        if let httpResponse = navigationResponse.response as? HTTPURLResponse {
-            self.lastStatusCode = httpResponse.statusCode
+    nonisolated func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        MainActor.assumeIsolated {
+            if let httpResponse = navigationResponse.response as? HTTPURLResponse {
+                self.lastStatusCode = httpResponse.statusCode
+            }
         }
         decisionHandler(.allow)
     }

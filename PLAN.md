@@ -2,48 +2,37 @@
 
 ## Issues Found & Fixes
 
-### 1. ExportHistoryService — Missing Methods & Properties
+### 1. ExportHistoryService — Missing Methods & Properties (FIXED)
 
-The `ExportHistoryService` class is empty but referenced throughout the app for `records`, `recordExport()`, and `clearHistory()`.
-
-**Fix:** Add the missing `ExportRecord` struct, `records` array, `recordExport()`, and `clearHistory()` methods with persistence.
+- [x] Add `ExportRecord` struct, `records` array, `recordExport()`, and `clearHistory()` methods with persistence.
 
 ---
 
-### 2. TestSchedule — Missing `isActive` Property
+### 2. TestSchedule — Missing `isActive` Property (FIXED)
 
-`PPSRSettingsView` references `schedule.isActive` but it doesn't exist on `TestSchedule`.
-
-**Fix:** Add a computed `isActive` property that returns `true` if the scheduled date is in the future.
+- [x] Add computed `isActive` property that returns `true` if the scheduled date is in the future.
 
 ---
 
-### 3. LoginWebSession — Concurrency Warning (becomes error in Swift 6)
+### 3. LoginWebSession — Concurrency Warning (FIXED)
 
-The `decidePolicyFor navigationResponse` delegate method has two problems:
-
-- Accesses `navigationResponse.response` (a main-actor-isolated property) from a `nonisolated` context — causes repeated warnings
-- Calls `completion(false, ...)` for every response, which can prematurely mark navigation as failed before `didFinish` fires — this is a logic bug
-
-**Fix:** Rewrite the delegate method to extract the HTTP status code safely and store it without calling completion. Add a `lastStatusCode` property to the delegate and read it from the session.
+- [x] Rewrite `decidePolicyFor` delegate method to use `nonisolated` + `MainActor.assumeIsolated` to safely access `navigationResponse.response`.
+- [x] Store HTTP status code in `lastStatusCode` without calling completion prematurely.
 
 ---
 
-### 4. GreenBannerDetector — Unused Variable Warning
+### 4. GreenBannerDetector — Unused Variable Warning (FIXED)
 
-`bestEnd` is written to but never read.
-
-**Fix:** Remove the unused `bestEnd` variable since `bestStart` and `bestLength` are sufficient.
+- [x] Remove unused `bestEnd` variable — `bestStart` and `bestLength` are sufficient.
 
 ---
 
-### 5. ProxyRotationService — Captured Var in Concurrent Code
+### 5. ProxyRotationService — Captured Var in Concurrent Code (FIXED)
 
-`lastErrorDesc` is a mutable `var` referenced inside a concurrent `Task` closure, which is a Swift 6 error.
-
-**Fix:** Copy `lastErrorDesc` to a `let` constant before using it inside the `Task` block (already partially done but needs cleanup).
+- [x] `lastError` is now a local var in a sequential nonisolated async function — no concurrent capture issue.
 
 ---
 
 ### Summary
 
+All 5 issues identified and resolved. Build should compile cleanly with no errors or warnings.
