@@ -159,9 +159,9 @@
 			productReference = 105FC57A2E9EAD3100EA8BCF /* PPSRSolo.app */;
 			productType = "com.apple.product-type.application";
 		};
-		105FC5882E9EAD3200EA8BCF /* PPSRSolo */ = {
+		105FC5882E9EAD3200EA8BCF /* PPSRSoloTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 105FC5A02E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "PPSRSolo" */;
+			buildConfigurationList = 105FC5A02E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "PPSRSoloTests" */;
 			buildPhases = (
 				105FC5852E9EAD3200EA8BCF /* Sources */,
 				105FC5862E9EAD3200EA8BCF /* Frameworks */,
@@ -175,16 +175,16 @@
 			fileSystemSynchronizedGroups = (
 				105FC58C2E9EAD3200EA8BCF /* PPSRSoloTests */,
 			);
-			name = PPSRSolo;
+			name = PPSRSoloTests;
 			packageProductDependencies = (
 			);
-			productName = PPSRSolo;
+			productName = PPSRSoloTests;
 			productReference = 105FC5892E9EAD3200EA8BCF /* PPSRSoloTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		105FC5922E9EAD3200EA8BCF /* PPSRSolo */ = {
+		105FC5922E9EAD3200EA8BCF /* PPSRSoloUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 105FC5A32E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "PPSRSolo" */;
+			buildConfigurationList = 105FC5A32E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "PPSRSoloUITests" */;
 			buildPhases = (
 				105FC58F2E9EAD3200EA8BCF /* Sources */,
 				105FC5902E9EAD3200EA8BCF /* Frameworks */,
@@ -198,10 +198,10 @@
 			fileSystemSynchronizedGroups = (
 				105FC5962E9EAD3200EA8BCF /* PPSRSoloUITests */,
 			);
-			name = PPSRSolo;
+			name = PPSRSoloUITests;
 			packageProductDependencies = (
 			);
-			productName = PPSRSolo;
+			productName = PPSRSoloUITests;
 			productReference = 105FC5932E9EAD3200EA8BCF /* PPSRSoloUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
@@ -269,8 +269,8 @@
 			targets = (
 				105FC5792E9EAD3100EA8BCF /* PPSRSolo */,
 				BB0006002E9EAD3200EA8BC6 /* PPSRWidgetExtension */,
-				105FC5882E9EAD3200EA8BCF /* PPSRSolo */,
-				105FC5922E9EAD3200EA8BCF /* PPSRSolo */,
+				105FC5882E9EAD3200EA8BCF /* PPSRSoloTests */,
+				105FC5922E9EAD3200EA8BCF /* PPSRSoloUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -564,7 +564,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = PPSR.iOS.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = PPSRSoloTests;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -587,7 +587,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = PPSR.iOS.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = PPSRSoloTests;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -608,7 +608,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = PPSR.iOS.uitests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = PPSRSoloUITests;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -629,7 +629,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = PPSR.iOS.uitests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = PPSRSoloUITests;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -718,7 +718,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		105FC5A02E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "PPSRSolo" */ = {
+		105FC5A02E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "PPSRSoloTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				105FC5A12E9EAD3200EA8BCF /* Debug */,
@@ -727,7 +727,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		105FC5A32E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "PPSRSolo" */ = {
+		105FC5A32E9EAD3200EA8BCF /* Build configuration list for PBXNativeTarget "PPSRSoloUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				105FC5A42E9EAD3200EA8BCF /* Debug */,
