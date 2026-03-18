@@ -484,8 +484,9 @@ class ProxyRotationService {
                 continue
             }
         }
+        let errorDesc = lastErrorDesc
         Task { @MainActor in
-            self.logger.log("ProxyTest FAIL: \(proxy.displayString) — \(lastErrorDesc)", category: .proxy, level: .debug)
+            self.logger.log("ProxyTest FAIL: \(proxy.displayString) — \(errorDesc)", category: .proxy, level: .debug)
         }
         return false
     }
