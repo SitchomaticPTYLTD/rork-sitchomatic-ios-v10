@@ -9,6 +9,7 @@ struct DeviceNetworkSettingsView: View {
     @State private var showWGFilePicker: Bool = false
     @State private var dnsImportText: String = ""
     @State private var showDNSImport: Bool = false
+    @State private var dnsTestComplete: Bool = false
 
     var body: some View {
         List {
@@ -62,18 +63,74 @@ struct DeviceNetworkSettingsView: View {
 
     private var dnsSection: some View {
         Section {
+            HStack(spacing: 10) {
+                Button {
+                    Task {
+                        dnsTestComplete = false
+                        _ = await dnsService.testAllProviders()
+                        dnsTestComplete = true
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if dnsService.isTestingAll {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: "bolt.horizontal.circle.fill")
+                        }
+                        Text(dnsService.isTestingAll ? "Testing..." : "Test All DNS")
+                            .font(.subheadline.bold())
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color.blue.opacity(0.12))
+                    .foregroundStyle(.blue)
+                    .clipShape(.rect(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .disabled(dnsService.isTestingAll)
+
+                if dnsTestComplete || dnsService.managedProviders.contains(where: { $0.autoDisabledBySystem }) {
+                    Button {
+                        dnsService.enableAll()
+                        dnsTestComplete = false
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text("Re-enable")
+                                .font(.subheadline.bold())
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.green.opacity(0.12))
+                        .foregroundStyle(.green)
+                        .clipShape(.rect(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+
             ForEach(dnsService.managedProviders) { provider in
                 HStack(spacing: 10) {
                     Image(systemName: "lock.shield.fill")
-                        .foregroundStyle(provider.isEnabled ? .green : .secondary)
+                        .foregroundStyle(providerIconColor(provider))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(provider.name).font(.subheadline.bold())
+                        HStack(spacing: 6) {
+                            Text(provider.name).font(.subheadline.bold())
+                            if provider.autoDisabledBySystem {
+                                Text("AUTO-OFF")
+                                    .font(.system(.caption2, design: .monospaced, weight: .bold))
+                                    .foregroundStyle(.orange)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Color.orange.opacity(0.15))
+                                    .clipShape(.rect(cornerRadius: 4))
+                            }
+                        }
                         Text(provider.url).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer()
-                    if provider.isEnabled {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    }
+                    dnsStatusBadge(provider)
                 }
                 .swipeActions(edge: .trailing) {
                     if !provider.isDefault {
@@ -93,7 +150,63 @@ struct DeviceNetworkSettingsView: View {
                 Label("Add DNS Provider", systemImage: "plus.circle").foregroundStyle(.green)
             }
         } header: {
-            Text("DNS-over-HTTPS (\(dnsService.managedProviders.filter(\.isEnabled).count) active)")
+            HStack {
+                Text("DNS-over-HTTPS (\(dnsService.managedProviders.filter(\.isEnabled).count) active)")
+                Spacer()
+                if dnsService.healthyProviderCount < dnsService.managedProviders.count && dnsService.healthyProviderCount > 0 {
+                    Text("\(dnsService.healthyProviderCount) healthy")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dnsStatusBadge(_ provider: ManagedDoHProvider) -> some View {
+        switch provider.lastTestStatus {
+        case .untested:
+            if provider.isEnabled {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            } else {
+                Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+            }
+        case .testing:
+            ProgressView().controlSize(.mini)
+        case .passed(let latencyMs):
+            Text("\(latencyMs)ms")
+                .font(.system(.caption2, design: .monospaced, weight: .semibold))
+                .foregroundStyle(.green)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.green.opacity(0.12))
+                .clipShape(.rect(cornerRadius: 4))
+        case .failed:
+            Text("FAIL")
+                .font(.system(.caption2, design: .monospaced, weight: .bold))
+                .foregroundStyle(.red)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.red.opacity(0.12))
+                .clipShape(.rect(cornerRadius: 4))
+        case .autoDisabled:
+            Text("DISABLED")
+                .font(.system(.caption2, design: .monospaced, weight: .bold))
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.orange.opacity(0.12))
+                .clipShape(.rect(cornerRadius: 4))
+        }
+    }
+
+    private func providerIconColor(_ provider: ManagedDoHProvider) -> Color {
+        if provider.autoDisabledBySystem { return .orange }
+        if !provider.isEnabled { return .secondary }
+        switch provider.lastTestStatus {
+        case .failed, .autoDisabled: return .red
+        case .passed: return .green
+        default: return provider.isEnabled ? .green : .secondary
         }
     }
 

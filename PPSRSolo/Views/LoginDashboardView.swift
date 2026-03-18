@@ -24,6 +24,9 @@ struct LoginDashboardView: View {
                 if showStatsPanel {
                     lifetimeStatsCard
                 }
+                if vm.preflightFailed {
+                    preflightFailedCard
+                }
                 if vm.connectionStatus == .error || vm.diagnosticReport != nil {
                     connectionDiagnosticsCard
                 }
@@ -180,6 +183,7 @@ struct LoginDashboardView: View {
                         Text("Batch Testing")
                             .font(.subheadline.bold())
                             .foregroundStyle(.teal)
+                        batchConnectivityDot
                         if vm.isPaused {
                             Text(vm.pauseCountdown > 0 ? "PAUSED \(vm.pauseCountdown)s" : "PAUSED")
                                 .font(.system(.caption2, design: .monospaced, weight: .heavy))
@@ -602,6 +606,72 @@ struct LoginDashboardView: View {
         case .running: .blue
         case .pending: .secondary
         }
+    }
+
+    @ViewBuilder
+    private var batchConnectivityDot: some View {
+        if vm.isRunning {
+            let color: Color = {
+                switch vm.batchConnectivityHealth {
+                case .healthy: return .green
+                case .degraded: return .yellow
+                case .down: return .red
+                }
+            }()
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+                .shadow(color: color.opacity(0.6), radius: 3)
+        }
+    }
+
+    private var preflightFailedCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.title3)
+                    .foregroundStyle(.red)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Pre-Batch Check Failed")
+                        .font(.subheadline.bold())
+                    Text(vm.preflightMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    vm.preflightFailed = false
+                    Task { await vm.testConnection() }
+                } label: {
+                    Label("Retry Connection", systemImage: "arrow.clockwise")
+                        .font(.caption.bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.blue.opacity(0.12))
+                        .foregroundStyle(.blue)
+                        .clipShape(.rect(cornerRadius: 10))
+                }
+
+                Button {
+                    vm.preflightFailed = false
+                    Task { await vm.testAllDNS() }
+                } label: {
+                    Label("Test DNS", systemImage: "bolt.horizontal.circle")
+                        .font(.caption.bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.orange.opacity(0.12))
+                        .foregroundStyle(.orange)
+                        .clipShape(.rect(cornerRadius: 10))
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(.rect(cornerRadius: 14))
     }
 
     private var testControlsCard: some View {

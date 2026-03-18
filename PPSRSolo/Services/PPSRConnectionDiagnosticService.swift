@@ -50,6 +50,12 @@ class PPSRConnectionDiagnosticService {
     var currentStepName: String = ""
     var steps: [DiagnosticStep] = []
 
+    nonisolated enum ConnectivityHealth: Sendable {
+        case healthy
+        case degraded
+        case down
+    }
+
     func runFullDiagnostic() async -> DiagnosticReport {
         isRunning = true
         steps = []
@@ -108,41 +114,6 @@ class PPSRConnectionDiagnosticService {
     func quickHealthCheck() async -> (healthy: Bool, detail: String) {
         let start = Date()
         logger.startTimer(key: "ppsr_health")
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 12
-        config.waitsForConnectivity = false
-        let session = URLSession(configuration: config)
-        defer { session.invalidateAndCancel() }
-
-        var request = URLRequest(url: targetURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 10)
-        request.httpMethod = "HEAD"
-        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
-
-        do {
-            let (_, response) = try await session.data(for: request)
-            let latency = Int(Date().timeIntervalSince(start) * 1000)
-            _ = logger.stopTimer(key: "ppsr_health")
-            if let http = response as? HTTPURLResponse {
-                if http.statusCode >= 200 && http.statusCode < 400 {
-                    logger.log("PPSR health: OK (\(http.statusCode)) in \(latency)ms", category: .network, level: .success, durationMs: latency)
-                    return (true, "OK (\(http.statusCode)) in \(latency)ms")
-                } else {
-                    logger.log("PPSR health: FAIL HTTP \(http.statusCode) in \(latency)ms", category: .network, level: .error, durationMs: latency)
-                    return (false, "HTTP \(http.statusCode) in \(latency)ms")
-                }
-            }
-            return (true, "Response received in \(latency)ms")
-        } catch {
-            _ = logger.stopTimer(key: "ppsr_health")
-            logger.logError("PPSR health: network error", error: error, category: .network)
-            return (false, error.localizedDescription)
-        }
-    }
-
-    private func testInternetConnectivity() async -> DiagnosticStep {
-        currentStepName = "Internet Connectivity"
-        let start = Date()
 
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 8
@@ -151,14 +122,119 @@ class PPSRConnectionDiagnosticService {
         let session = URLSession(configuration: config)
         defer { session.invalidateAndCancel() }
 
-        let testURLs = [
-            URL(string: "https://www.apple.com")!,
-            URL(string: "https://www.google.com")!,
-            URL(string: "https://1.1.1.1")!,
+        let endpoints = [
+            targetURL,
+            URL(string: "https://transact.ppsr.gov.au")!,
+            URL(string: "https://www.ppsr.gov.au")!,
         ]
 
-        for testURL in testURLs {
-            var request = URLRequest(url: testURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 8)
+        for (index, endpoint) in endpoints.enumerated() {
+            var request = URLRequest(url: endpoint, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 8)
+            request.httpMethod = "HEAD"
+            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+
+            do {
+                let (_, response) = try await session.data(for: request)
+                let latency = Int(Date().timeIntervalSince(start) * 1000)
+                _ = logger.stopTimer(key: "ppsr_health")
+                if let http = response as? HTTPURLResponse {
+                    if http.statusCode >= 200 && http.statusCode < 400 {
+                        logger.log("PPSR health: OK (\(http.statusCode)) in \(latency)ms via endpoint \(index + 1)", category: .network, level: .success, durationMs: latency)
+                        return (true, "OK (\(http.statusCode)) in \(latency)ms")
+                    }
+                }
+            } catch {
+                if index < endpoints.count - 1 {
+                    let backoff = Double(index + 1) * 1.0
+                    try? await Task.sleep(for: .seconds(backoff))
+                    continue
+                }
+                _ = logger.stopTimer(key: "ppsr_health")
+                logger.logError("PPSR health: all endpoints failed", error: error, category: .network)
+                return (false, error.localizedDescription)
+            }
+        }
+
+        _ = logger.stopTimer(key: "ppsr_health")
+        return (false, "All health check endpoints unreachable")
+    }
+
+    func preflightGate() async -> (passed: Bool, detail: String) {
+        let internetOK = await testInternetConnectivity()
+        guard internetOK.status != .failed else {
+            return (false, "No internet connection")
+        }
+
+        let doh = PPSRDoHService.shared
+        guard doh.hasAnyHealthyProvider else {
+            return (false, "No healthy DNS providers available — run Test All DNS in Network Settings")
+        }
+
+        let healthCheck = await quickHealthCheck()
+        if healthCheck.healthy {
+            return (true, healthCheck.detail)
+        }
+
+        let retryCheck = await quickHealthCheck()
+        return (retryCheck.healthy, retryCheck.healthy ? retryCheck.detail : "PPSR unreachable: \(retryCheck.detail)")
+    }
+
+    func connectivityWatchdogCheck() async -> ConnectivityHealth {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 6
+        config.timeoutIntervalForResource = 8
+        config.waitsForConnectivity = false
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+
+        let checkURLs = [
+            URL(string: "https://1.1.1.1")!,
+            targetURL,
+        ]
+
+        var internetOK = false
+        var ppsrOK = false
+
+        for (index, url) in checkURLs.enumerated() {
+            var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 6)
+            request.httpMethod = "HEAD"
+            do {
+                let (_, response) = try await session.data(for: request)
+                if let http = response as? HTTPURLResponse, http.statusCode < 400 {
+                    if index == 0 { internetOK = true }
+                    if index == 1 { ppsrOK = true }
+                }
+            } catch {
+                continue
+            }
+        }
+
+        if internetOK && ppsrOK { return .healthy }
+        if internetOK { return .degraded }
+        return .down
+    }
+
+    private func testInternetConnectivity() async -> DiagnosticStep {
+        currentStepName = "Internet Connectivity"
+        let start = Date()
+
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 6
+        config.timeoutIntervalForResource = 8
+        config.waitsForConnectivity = false
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+
+        let testURLs = [
+            URL(string: "https://1.1.1.1")!,
+            URL(string: "https://www.apple.com")!,
+            URL(string: "https://www.google.com")!,
+            URL(string: "https://dns.google")!,
+            URL(string: "https://8.8.8.8")!,
+        ]
+
+        for (index, testURL) in testURLs.enumerated() {
+            var request = URLRequest(url: testURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 6)
             request.httpMethod = "HEAD"
             do {
                 let (_, response) = try await session.data(for: request)
@@ -167,11 +243,15 @@ class PPSRConnectionDiagnosticService {
                     return DiagnosticStep(name: "Internet Connectivity", status: .passed, detail: "Connected via \(testURL.host ?? "unknown") (\(http.statusCode))", latencyMs: latency)
                 }
             } catch {
+                if index < testURLs.count - 1 {
+                    let backoff = min(Double(index + 1) * 0.5, 2.0)
+                    try? await Task.sleep(for: .seconds(backoff))
+                }
                 continue
             }
         }
 
-        return DiagnosticStep(name: "Internet Connectivity", status: .failed, detail: "Cannot reach Apple, Google, or Cloudflare — no internet connection")
+        return DiagnosticStep(name: "Internet Connectivity", status: .failed, detail: "Cannot reach any endpoint — no internet connection")
     }
 
     private func testDNSResolution() async -> DiagnosticStep {

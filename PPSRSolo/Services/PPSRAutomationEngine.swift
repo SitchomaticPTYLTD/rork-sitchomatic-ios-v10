@@ -492,15 +492,22 @@ class PPSRAutomationEngine {
 
     private func performDoHPreflight(check: PPSRCheck, sessionId: String = "") async {
         guard let host = LoginWebSession.targetURL.host else { return }
-        let provider = dohService.currentProvider
+        guard dohService.hasAnyHealthyProvider else {
+            check.logs.append(PPSRLogEntry(message: "DoH preflight: no healthy providers — using system DNS", level: .warning))
+            logger.log("DoH preflight: no healthy providers available", category: .dns, level: .warning, sessionId: sessionId)
+            return
+        }
+        let provider = dohService.nextProvider()
         check.logs.append(PPSRLogEntry(message: "DoH preflight: resolving \(host) via \(provider.name)", level: .info))
         logger.log("DoH preflight: resolving \(host) via \(provider.name)", category: .dns, level: .debug, sessionId: sessionId)
         if let result = await dohService.preflightResolve(hostname: host) {
+            dohService.markProviderHealthy(name: result.provider)
             check.logs.append(PPSRLogEntry(message: "DoH resolved: \(result.ip) via \(result.provider) in \(result.latencyMs)ms", level: .success))
             logger.log("DoH resolved: \(result.ip) via \(result.provider)", category: .dns, level: .success, sessionId: sessionId, durationMs: result.latencyMs)
         } else {
+            dohService.markProviderFailed(name: provider.name)
             check.logs.append(PPSRLogEntry(message: "DoH preflight failed — falling back to system DNS", level: .warning))
-            logger.log("DoH preflight FAILED — falling back to system DNS", category: .dns, level: .warning, sessionId: sessionId)
+            logger.log("DoH preflight FAILED — provider \(provider.name) marked unhealthy", category: .dns, level: .warning, sessionId: sessionId)
         }
     }
 

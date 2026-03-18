@@ -84,6 +84,11 @@ class PPSRAutomationViewModel {
     var lastHealthCheck: (healthy: Bool, detail: String)?
     var autoHealAttempted: Bool = false
     var consecutiveConnectionFailures: Int = 0
+    var batchConnectivityHealth: PPSRConnectionDiagnosticService.ConnectivityHealth = .healthy
+    var isTestingDNS: Bool = false
+    var lastDNSTestResult: (passed: Int, failed: Int, autoDisabled: Int)?
+    var preflightFailed: Bool = false
+    var preflightMessage: String = ""
     var fingerprintPassRate: String { FingerprintValidationService.shared.formattedPassRate }
     var fingerprintAvgScore: Double { FingerprintValidationService.shared.averageScore }
     var fingerprintHistory: [FingerprintValidationService.FingerprintScore] { FingerprintValidationService.shared.scoreHistory }
@@ -121,7 +126,9 @@ class PPSRAutomationViewModel {
     private var settingsSaveTask: Task<Void, Never>?
     private var cardsSaveTask: Task<Void, Never>?
     private var heartbeatTask: Task<Void, Never>?
+    private var connectivityWatchdogTask: Task<Void, Never>?
     private let sessionHeartbeatTimeout: TimeInterval = 90
+    private let dohService = PPSRDoHService.shared
 
     init() {
         engine.onScreenshot = { [weak self] screenshot in
@@ -404,6 +411,10 @@ class PPSRAutomationViewModel {
                     persistSettings()
                     log("Auto-heal: Enabled Ultra Stealth Mode", level: .success)
                 }
+                let dnsResult = await dohService.testAllProviders()
+                if dnsResult.autoDisabled > 0 {
+                    log("Auto-heal: disabled \(dnsResult.autoDisabled) failing DNS providers", level: .warning)
+                }
 
             case "HTTPS Reachability":
                 if step.detail.contains("403") || step.detail.contains("blocked") {
@@ -641,14 +652,23 @@ class PPSRAutomationViewModel {
             case .connectionFailure:
                 reason = "connection failure"
                 consecutiveConnectionFailures += 1
-                if consecutiveConnectionFailures >= 3 {
-                    log("3+ consecutive connection failures — auto-running diagnostics", level: .error)
-                    Task { await runFullDiagnostic() }
+                if consecutiveConnectionFailures >= 3 && !isPaused {
+                    log("3+ consecutive connection failures — triggering watchdog recovery", level: .error)
+                    Task { await watchdogRecovery() }
                 }
             default: reason = "uncertain result"
             }
             log("\(card.brand.rawValue) \(card.number) — requeued (\(reason))", level: .warning)
         }
+    }
+
+    func testAllDNS() async {
+        isTestingDNS = true
+        log("Testing all DNS providers...")
+        let result = await dohService.testAllProviders()
+        lastDNSTestResult = result
+        isTestingDNS = false
+        log("DNS test complete: \(result.passed) passed, \(result.failed) failed, \(result.autoDisabled) auto-disabled", level: result.passed > 0 ? .success : .error)
     }
 
     func testAllUntested() {
@@ -658,6 +678,24 @@ class PPSRAutomationViewModel {
             return
         }
 
+        preflightFailed = false
+        preflightMessage = ""
+
+        Task {
+            log("Running pre-batch connectivity gate...")
+            let gate = await diagnostics.preflightGate()
+            if !gate.passed {
+                preflightFailed = true
+                preflightMessage = gate.detail
+                log("Pre-batch gate FAILED: \(gate.detail)", level: .error)
+                return
+            }
+            log("Pre-batch gate passed: \(gate.detail)", level: .success)
+            startBatchForCards(cardsToTest)
+        }
+    }
+
+    private func startBatchForCards(_ cardsToTest: [PPSRCard]) {
         isPaused = false
         isStopping = false
         batchStartTime = Date()
@@ -673,10 +711,13 @@ class PPSRAutomationViewModel {
         logger.log("PPSR BATCH START: \(cardsToTest.count) cards, concurrency=\(maxConcurrency), stealth=\(stealthEnabled)", category: .ppsr, level: .info, metadata: ["count": "\(cardsToTest.count)"])
         isRunning = true
         startHeartbeatMonitor()
+        startConnectivityWatchdog()
         backgroundService.beginExtendedBackgroundExecution(reason: "PPSR batch test")
         liveActivity.startBatchActivity(totalCards: cardsToTest.count)
         startLiveActivityUpdates()
         persistence.saveTestQueue(cardIds: cardsToTest.map(\.id))
+        batchConnectivityHealth = .healthy
+        consecutiveConnectionFailures = 0
 
         var batchWorking = 0
         var batchDead = 0
@@ -812,6 +853,23 @@ class PPSRAutomationViewModel {
             card.status = .untested
         }
 
+        preflightFailed = false
+        preflightMessage = ""
+
+        Task {
+            let gate = await diagnostics.preflightGate()
+            if !gate.passed {
+                preflightFailed = true
+                preflightMessage = gate.detail
+                log("Pre-batch gate FAILED: \(gate.detail)", level: .error)
+                for card in cardsToTest { card.status = .untested }
+                return
+            }
+            startSelectedBatch(cardsToTest)
+        }
+    }
+
+    private func startSelectedBatch(_ cardsToTest: [PPSRCard]) {
         isPaused = false
         isStopping = false
         batchTotalCards = cardsToTest.count
@@ -824,10 +882,13 @@ class PPSRAutomationViewModel {
         log("Starting selected test: \(cardsToTest.count) cards, max \(maxConcurrency) concurrent")
         isRunning = true
         startHeartbeatMonitor()
+        startConnectivityWatchdog()
         backgroundService.beginExtendedBackgroundExecution(reason: "PPSR selected card test")
         liveActivity.startBatchActivity(totalCards: cardsToTest.count)
         startLiveActivityUpdates()
         persistence.saveTestQueue(cardIds: cardsToTest.map(\.id))
+        batchConnectivityHealth = .healthy
+        consecutiveConnectionFailures = 0
 
         var batchWorking = 0
         var batchDead = 0
@@ -892,6 +953,7 @@ class PPSRAutomationViewModel {
         lastBatchResult = result
         cancelPauseCountdown()
         stopHeartbeatMonitor()
+        stopConnectivityWatchdog()
         stopBatchElapsedTimer()
         persistence.clearTestQueue()
         isRunning = false
@@ -992,6 +1054,70 @@ class PPSRAutomationViewModel {
     private func stopHeartbeatMonitor() {
         heartbeatTask?.cancel()
         heartbeatTask = nil
+    }
+
+    private func startConnectivityWatchdog() {
+        connectivityWatchdogTask?.cancel()
+        connectivityWatchdogTask = Task {
+            while !Task.isCancelled && isRunning {
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled, isRunning else { break }
+                let health = await diagnostics.connectivityWatchdogCheck()
+                batchConnectivityHealth = health
+                switch health {
+                case .healthy:
+                    if consecutiveConnectionFailures > 0 {
+                        consecutiveConnectionFailures = 0
+                        log("Watchdog: connectivity restored", level: .success)
+                    }
+                case .degraded:
+                    log("Watchdog: PPSR degraded — internet OK but PPSR unreachable", level: .warning)
+                case .down:
+                    log("Watchdog: internet DOWN — auto-pausing batch", level: .error)
+                    if !isPaused {
+                        isPaused = true
+                        log("Batch auto-paused by watchdog — waiting for connectivity", level: .error)
+                        await watchdogRecovery()
+                    }
+                }
+            }
+        }
+    }
+
+    private func stopConnectivityWatchdog() {
+        connectivityWatchdogTask?.cancel()
+        connectivityWatchdogTask = nil
+    }
+
+    private func watchdogRecovery() async {
+        log("Watchdog recovery: running diagnostics + DNS test...", level: .warning)
+
+        let dnsResult = await dohService.testAllProviders()
+        if dnsResult.autoDisabled > 0 {
+            log("Watchdog: auto-disabled \(dnsResult.autoDisabled) failing DNS provider(s)", level: .warning)
+        }
+
+        if !stealthEnabled && dnsResult.passed > 0 {
+            stealthEnabled = true
+            persistSettings()
+            log("Watchdog: enabled stealth mode for DoH resolution", level: .info)
+        }
+
+        for attempt in 1...3 {
+            try? await Task.sleep(for: .seconds(Double(attempt) * 5))
+            let health = await diagnostics.connectivityWatchdogCheck()
+            batchConnectivityHealth = health
+            if health == .healthy {
+                consecutiveConnectionFailures = 0
+                isPaused = false
+                log("Watchdog: connectivity restored on attempt \(attempt) — resuming batch", level: .success)
+                return
+            }
+            log("Watchdog recovery attempt \(attempt)/3: still \(health == .down ? "down" : "degraded")", level: .warning)
+        }
+
+        log("Watchdog: recovery failed after 3 attempts — batch remains paused", level: .error)
+        notifications.sendConnectionFailure(detail: "Batch auto-paused: connectivity lost")
     }
 
     func retestCard(_ card: PPSRCard) {
