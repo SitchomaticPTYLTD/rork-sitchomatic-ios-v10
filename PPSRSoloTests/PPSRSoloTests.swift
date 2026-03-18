@@ -41,6 +41,7 @@ struct CardBrandDetectionTests {
     }
 }
 
+@MainActor
 struct CardParsingTests {
     @Test func parsesPipeFormat() {
         let cards = PPSRCard.smartParse("4111111111111111|12|28|123")
@@ -78,6 +79,7 @@ struct CardParsingTests {
     }
 }
 
+@MainActor
 struct PPSRCardModelTests {
     @Test func cardInitialization() {
         let card = PPSRCard(number: "4111111111111111", expiryMonth: "12", expiryYear: "28", cvv: "123")
@@ -136,8 +138,8 @@ struct VINGeneratorTests {
     }
 }
 
+@MainActor
 struct DebugLogTests {
-    @MainActor
     @Test func logEntryFormatting() {
         let entry = DebugLogEntry(
             category: .ppsr,
@@ -155,7 +157,6 @@ struct DebugLogTests {
         #expect(entry.exportLine.contains("sess_123"))
     }
 
-    @MainActor
     @Test func logLevelComparison() {
         #expect(DebugLogLevel.trace < DebugLogLevel.debug)
         #expect(DebugLogLevel.debug < DebugLogLevel.info)
