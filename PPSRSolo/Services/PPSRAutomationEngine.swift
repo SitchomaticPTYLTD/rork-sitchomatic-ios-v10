@@ -146,11 +146,16 @@ class PPSRAutomationEngine {
         }
 
         logger.startTimer(key: "\(sessionId)_appready")
-        check.logs.append(PPSRLogEntry(message: "Waiting for PPSR app to fully initialize (detecting loading screens)...", level: .info))
+        check.logs.append(PPSRLogEntry(message: "Smart field detection: scanning all form elements...", level: .info))
         let appReady = await session.waitForAppReady(timeout: 25)
         let readyMs = logger.stopTimer(key: "\(sessionId)_appready")
-        logger.log("App readiness: ready=\(appReady.ready) fields=\(appReady.fieldsFound) — \(appReady.detail)", category: .automation, level: appReady.ready ? .success : .warning, sessionId: sessionId, durationMs: readyMs)
-        check.logs.append(PPSRLogEntry(message: "App readiness: \(appReady.detail)", level: appReady.ready ? .success : .warning))
+        logger.log("Smart detection: ready=\(appReady.ready) fields=\(appReady.fieldsFound) — \(appReady.detail)", category: .automation, level: appReady.ready ? .success : .warning, sessionId: sessionId, durationMs: readyMs)
+        check.logs.append(PPSRLogEntry(message: "Smart detection: \(appReady.detail)", level: appReady.ready ? .success : .warning))
+
+        if let fieldMap = session.lastFieldMap {
+            check.logs.append(PPSRLogEntry(message: "Field map: \(fieldMap.summary) (\(fieldMap.totalElements) elements scanned)", level: .info))
+            logger.log("Field map: \(fieldMap.summary) total=\(fieldMap.totalElements)", category: .automation, level: .debug, sessionId: sessionId)
+        }
 
         if !appReady.ready && appReady.fieldsFound == 0 {
             check.logs.append(PPSRLogEntry(message: "Healing: dumping page structure for diagnostics...", level: .info))
@@ -162,8 +167,8 @@ class PPSRAutomationEngine {
             let reloaded = await session.loadPage(timeout: 30)
             if reloaded {
                 let retryReady = await session.waitForAppReady(timeout: 20)
-                logger.log("Retry app readiness: ready=\(retryReady.ready) fields=\(retryReady.fieldsFound)", category: .automation, level: retryReady.ready ? .success : .warning, sessionId: sessionId)
-                check.logs.append(PPSRLogEntry(message: "Retry readiness: \(retryReady.detail)", level: retryReady.ready ? .success : .warning))
+                logger.log("Retry smart detection: ready=\(retryReady.ready) fields=\(retryReady.fieldsFound)", category: .automation, level: retryReady.ready ? .success : .warning, sessionId: sessionId)
+                check.logs.append(PPSRLogEntry(message: "Retry detection: \(retryReady.detail)", level: retryReady.ready ? .success : .warning))
 
                 if !retryReady.ready && retryReady.fieldsFound == 0 {
                     failCheck(check, message: "FATAL: No form fields found after reload and extended wait")
@@ -180,34 +185,37 @@ class PPSRAutomationEngine {
         logger.startTimer(key: "\(sessionId)_fieldverify")
         let verification = await session.verifyFieldsExist()
         let fieldMs = logger.stopTimer(key: "\(sessionId)_fieldverify")
-        logger.log("Final field verification: \(verification.found)/6 found", category: .automation, level: verification.found >= 4 ? .debug : .warning, sessionId: sessionId, durationMs: fieldMs)
+        logger.log("Smart field verification: \(verification.found)/6 found", category: .automation, level: verification.found >= 4 ? .debug : .warning, sessionId: sessionId, durationMs: fieldMs)
         if verification.found < 6 {
-            check.logs.append(PPSRLogEntry(message: "Field scan: \(verification.found)/6 found. Missing: [\(verification.missing.joined(separator: ", "))]", level: verification.found >= 4 ? .info : .warning))
+            check.logs.append(PPSRLogEntry(message: "Smart scan: \(verification.found)/6 found. Missing: [\(verification.missing.joined(separator: ", "))]", level: verification.found >= 4 ? .info : .warning))
         } else {
-            check.logs.append(PPSRLogEntry(message: "All 6 form fields verified present and enabled", level: .success))
+            check.logs.append(PPSRLogEntry(message: "Smart scan: all 6 fields detected with confidence scores", level: .success))
         }
 
-        logger.log("Phase: FILL FORM FIELDS", category: .automation, level: .info, sessionId: sessionId)
-        advanceTo(.fillingVIN, check: check, message: "Filling VIN: \(check.vin)")
+        logger.log("Phase: SMART FILL FORM FIELDS", category: .automation, level: .info, sessionId: sessionId)
+        advanceTo(.fillingVIN, check: check, message: "Smart-filling VIN: \(check.vin)")
         let vinResult = await retryFill(session: session, check: check, fieldName: "VIN") {
             await session.fillVIN(check.vin)
         }
         guard vinResult else { return .connectionFailure }
+        await verifyAndLog(session: session, check: check, fieldName: "VIN", expected: check.vin, sessionId: sessionId)
         try? await Task.sleep(for: .milliseconds(300))
 
-        advanceTo(.submittingSearch, check: check, message: "Filling email: \(check.email)")
+        advanceTo(.submittingSearch, check: check, message: "Smart-filling email: \(check.email)")
         let emailResult = await retryFill(session: session, check: check, fieldName: "Email") {
             await session.fillEmail(check.email)
         }
         guard emailResult else { return .connectionFailure }
+        await verifyAndLog(session: session, check: check, fieldName: "Email", expected: check.email, sessionId: sessionId)
         try? await Task.sleep(for: .milliseconds(300))
 
-        logger.log("Phase: FILL PAYMENT", category: .automation, level: .info, sessionId: sessionId)
-        advanceTo(.enteringPayment, check: check, message: "Filling card: \(check.card.brand) \(check.card.displayNumber)")
+        logger.log("Phase: SMART FILL PAYMENT", category: .automation, level: .info, sessionId: sessionId)
+        advanceTo(.enteringPayment, check: check, message: "Smart-filling card: \(check.card.brand) \(check.card.displayNumber)")
         let cardResult = await retryFill(session: session, check: check, fieldName: "Card Number") {
             await session.fillCardNumber(check.card.number)
         }
         guard cardResult else { return .connectionFailure }
+        await verifyAndLog(session: session, check: check, fieldName: "Card", expected: check.card.number, sessionId: sessionId)
         try? await Task.sleep(for: .milliseconds(200))
 
         let monthResult = await retryFill(session: session, check: check, fieldName: "Exp Month") {
@@ -224,6 +232,7 @@ class PPSRAutomationEngine {
             await session.fillCVV(check.cvv)
         }
         guard cvvResult else { return .connectionFailure }
+        await verifyAndLog(session: session, check: check, fieldName: "CVV", expected: check.cvv, sessionId: sessionId)
         try? await Task.sleep(for: .milliseconds(500))
 
         logger.log("Phase: SUBMIT", category: .automation, level: .info, sessionId: sessionId)
@@ -508,6 +517,22 @@ class PPSRAutomationEngine {
             dohService.markProviderFailed(name: provider.name)
             check.logs.append(PPSRLogEntry(message: "DoH preflight failed — falling back to system DNS", level: .warning))
             logger.log("DoH preflight FAILED — provider \(provider.name) marked unhealthy", category: .dns, level: .warning, sessionId: sessionId)
+        }
+    }
+
+    private func verifyAndLog(session: LoginWebSession, check: PPSRCheck, fieldName: String, expected: String, sessionId: String) async {
+        let result = await session.verifyFieldValue(fieldName: fieldName)
+        if result.filled {
+            let match = result.value.replacingOccurrences(of: " ", with: "").hasPrefix(expected.prefix(6).replacingOccurrences(of: " ", with: ""))
+            if match {
+                logger.log("Verify \(fieldName): confirmed value present", category: .automation, level: .trace, sessionId: sessionId)
+            } else {
+                check.logs.append(PPSRLogEntry(message: "Verify \(fieldName): value mismatch (got \(result.value.prefix(8))...)", level: .warning))
+                logger.log("Verify \(fieldName): MISMATCH expected=\(expected.prefix(6)) got=\(result.value.prefix(8))", category: .automation, level: .warning, sessionId: sessionId)
+            }
+        } else {
+            check.logs.append(PPSRLogEntry(message: "Verify \(fieldName): field appears empty after fill", level: .warning))
+            logger.log("Verify \(fieldName): EMPTY after fill", category: .automation, level: .warning, sessionId: sessionId)
         }
     }
 
