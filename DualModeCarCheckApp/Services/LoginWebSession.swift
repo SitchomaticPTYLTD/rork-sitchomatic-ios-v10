@@ -210,6 +210,13 @@ class LoginWebSession: NSObject {
         }
     }
 
+    func checkForIframes() async -> Int {
+        guard let wv = webView else { return 0 }
+        let js = "document.querySelectorAll('iframe').length"
+        guard let count = try? await wv.evaluateJavaScript(js) as? Int else { return 0 }
+        return count
+    }
+
     private func fillField(selectors: [String], value: String, fieldName: String) async -> (success: Bool, detail: String) {
         guard let wv = webView else { return (false, "No webview") }
         let escapedValue = value.replacingOccurrences(of: "'", with: "\\'")
@@ -307,12 +314,9 @@ private class NavigationDelegate: NSObject, WKNavigationDelegate {
         }
     }
 
-    nonisolated func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
         if let httpResponse = navigationResponse.response as? HTTPURLResponse {
-            let code = httpResponse.statusCode
-            Task { @MainActor in
-                self.lastStatusCode = code
-            }
+            self.lastStatusCode = httpResponse.statusCode
         }
         decisionHandler(.allow)
     }
