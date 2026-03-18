@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var vm = PPSRAutomationViewModel()
-    @State private var selectedTab: AppTab = .dashboard
+    @State private var selectedTab: AppTab? = .dashboard
     @State private var selectedCardId: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -84,7 +84,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var iPadContentColumn: some View {
-        switch selectedTab {
+        switch selectedTab ?? .dashboard {
         case .dashboard:
             LoginDashboardView(vm: vm)
                 .withPPSRCardNavigation(cards: vm.cards, vm: vm, selectedCardId: $selectedCardId)
@@ -205,12 +205,12 @@ struct ContentView: View {
 
 private struct KeyboardShortcutModifier<Shortcuts: View>: ViewModifier {
     let enabled: Bool
-    @ViewBuilder let shortcuts: Shortcuts
+    @ViewBuilder let shortcuts: () -> Shortcuts
 
     func body(content: Content) -> some View {
         content
             .background {
-                shortcuts
+                shortcuts()
                     .frame(width: 0, height: 0)
                     .opacity(0)
                     .allowsHitTesting(false)
@@ -219,7 +219,7 @@ private struct KeyboardShortcutModifier<Shortcuts: View>: ViewModifier {
 }
 
 extension View {
-    func keyboardShortcut<S: View>(shortcuts enabled: Bool, @ViewBuilder content: () -> S) -> some View {
-        modifier(KeyboardShortcutModifier(enabled: enabled, shortcuts: content()))
+    func keyboardShortcut<S: View>(shortcuts enabled: Bool, @ViewBuilder content: @escaping () -> S) -> some View {
+        modifier(KeyboardShortcutModifier(enabled: enabled, shortcuts: { content() }))
     }
 }
