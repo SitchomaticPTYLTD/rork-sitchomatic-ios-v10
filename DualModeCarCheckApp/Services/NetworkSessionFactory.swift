@@ -35,43 +35,38 @@ class NetworkSessionFactory {
     private let proxyService = ProxyRotationService.shared
     private let logger = DebugLogger.shared
 
-    private var joeWGIndex: Int = 0
-    private var ignitionWGIndex: Int = 0
-    private var ppsrWGIndex: Int = 0
+    private var wgIndex: Int = 0
+    private var ovpnIndex: Int = 0
 
-    private var joeOVPNIndex: Int = 0
-    private var ignitionOVPNIndex: Int = 0
-    private var ppsrOVPNIndex: Int = 0
-
-    func nextConfig(for target: ProxyRotationService.ProxyTarget) -> ActiveNetworkConfig {
-        let mode = proxyService.connectionMode(for: target)
+    func nextConfig() -> ActiveNetworkConfig {
+        let mode = proxyService.connectionMode
 
         switch mode {
         case .dns:
             return .direct
 
         case .proxy:
-            if let proxy = proxyService.nextWorkingProxy(for: target) {
-                logger.log("NetworkFactory: assigned SOCKS5 \(proxy.displayString) for \(target.rawValue)", category: .proxy, level: .debug)
+            if let proxy = proxyService.nextWorkingProxy() {
+                logger.log("NetworkFactory: assigned SOCKS5 \(proxy.displayString)", category: .proxy, level: .debug)
                 return .socks5(proxy)
             }
-            logger.log("NetworkFactory: no working SOCKS5 proxy for \(target.rawValue) — falling back to direct", category: .proxy, level: .warning)
+            logger.log("NetworkFactory: no working SOCKS5 proxy — falling back to direct", category: .proxy, level: .warning)
             return .direct
 
         case .wireguard:
-            if let wg = nextWGConfig(for: target) {
-                logger.log("NetworkFactory: assigned WG \(wg.displayString) for \(target.rawValue)", category: .vpn, level: .debug)
+            if let wg = nextWGConfig() {
+                logger.log("NetworkFactory: assigned WG \(wg.displayString)", category: .vpn, level: .debug)
                 return .wireGuardDNS(wg)
             }
-            logger.log("NetworkFactory: no enabled WG config for \(target.rawValue) — falling back to direct", category: .vpn, level: .warning)
+            logger.log("NetworkFactory: no enabled WG config — falling back to direct", category: .vpn, level: .warning)
             return .direct
 
         case .openvpn:
-            if let ovpn = nextOVPNConfig(for: target) {
-                logger.log("NetworkFactory: assigned OVPN \(ovpn.displayString) for \(target.rawValue)", category: .vpn, level: .debug)
+            if let ovpn = nextOVPNConfig() {
+                logger.log("NetworkFactory: assigned OVPN \(ovpn.displayString)", category: .vpn, level: .debug)
                 return .openVPNProxy(ovpn)
             }
-            logger.log("NetworkFactory: no enabled OVPN config for \(target.rawValue) — falling back to direct", category: .vpn, level: .warning)
+            logger.log("NetworkFactory: no enabled OVPN config — falling back to direct", category: .vpn, level: .warning)
             return .direct
         }
     }
@@ -156,59 +151,25 @@ class NetworkSessionFactory {
     }
 
     func resetRotationIndexes() {
-        joeWGIndex = 0
-        ignitionWGIndex = 0
-        ppsrWGIndex = 0
-        joeOVPNIndex = 0
-        ignitionOVPNIndex = 0
-        ppsrOVPNIndex = 0
+        wgIndex = 0
+        ovpnIndex = 0
     }
 
-    // MARK: - WireGuard Rotation
-
-    private func nextWGConfig(for target: ProxyRotationService.ProxyTarget) -> WireGuardConfig? {
-        let configs = proxyService.wgConfigs(for: target).filter { $0.isEnabled }
+    private func nextWGConfig() -> WireGuardConfig? {
+        let configs = proxyService.wgConfigs.filter { $0.isEnabled }
         guard !configs.isEmpty else { return nil }
-
-        let index: Int
-        switch target {
-        case .joe:
-            index = joeWGIndex % configs.count
-            joeWGIndex = index + 1
-        case .ignition:
-            index = ignitionWGIndex % configs.count
-            ignitionWGIndex = index + 1
-        case .ppsr:
-            index = ppsrWGIndex % configs.count
-            ppsrWGIndex = index + 1
-        }
-
+        let index = wgIndex % configs.count
+        wgIndex = index + 1
         return configs[index]
     }
 
-    // MARK: - OpenVPN Rotation
-
-    private func nextOVPNConfig(for target: ProxyRotationService.ProxyTarget) -> OpenVPNConfig? {
-        let configs = proxyService.vpnConfigs(for: target).filter { $0.isEnabled }
+    private func nextOVPNConfig() -> OpenVPNConfig? {
+        let configs = proxyService.vpnConfigs.filter { $0.isEnabled }
         guard !configs.isEmpty else { return nil }
-
-        let index: Int
-        switch target {
-        case .joe:
-            index = joeOVPNIndex % configs.count
-            joeOVPNIndex = index + 1
-        case .ignition:
-            index = ignitionOVPNIndex % configs.count
-            ignitionOVPNIndex = index + 1
-        case .ppsr:
-            index = ppsrOVPNIndex % configs.count
-            ppsrOVPNIndex = index + 1
-        }
-
+        let index = ovpnIndex % configs.count
+        ovpnIndex = index + 1
         return configs[index]
     }
-
-    // MARK: - PAC Proxy
 
     private func generatePACScript(proxyHost: String, proxyPort: Int, type: String) -> String {
         """
@@ -231,8 +192,6 @@ class NetworkSessionFactory {
         let userScript = WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         config.userContentController.addUserScript(userScript)
     }
-
-    // MARK: - DNS Routing Script
 
     private func buildDNSRoutingScript(servers: [String], endpoint: String) -> String {
         """

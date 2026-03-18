@@ -51,45 +51,21 @@ nonisolated enum NetworkRegion: String, CaseIterable, Codable, Sendable {
 class ProxyRotationService {
     static let shared = ProxyRotationService()
 
-    nonisolated enum ProxyTarget: String, Sendable {
-        case joe
-        case ignition
-        case ppsr
-    }
-
     var savedProxies: [ProxyConfig] = []
-    var ignitionProxies: [ProxyConfig] = []
-    var ppsrProxies: [ProxyConfig] = []
+    var vpnConfigs: [OpenVPNConfig] = []
+    var wgConfigs: [WireGuardConfig] = []
 
-    var joeVPNConfigs: [OpenVPNConfig] = []
-    var ignitionVPNConfigs: [OpenVPNConfig] = []
-    var ppsrVPNConfigs: [OpenVPNConfig] = []
-
-    var joeWGConfigs: [WireGuardConfig] = []
-    var ignitionWGConfigs: [WireGuardConfig] = []
-    var ppsrWGConfigs: [WireGuardConfig] = []
     var currentProxyIndex: Int = 0
-    var currentIgnitionProxyIndex: Int = 0
-    var currentPPSRProxyIndex: Int = 0
-
-    var currentJoeWGIndex: Int = 0
-    var currentIgnitionWGIndex: Int = 0
-    var currentPPSRWGIndex: Int = 0
-
-    var currentJoeOVPNIndex: Int = 0
-    var currentIgnitionOVPNIndex: Int = 0
-    var currentPPSROVPNIndex: Int = 0
+    var currentWGIndex: Int = 0
+    var currentOVPNIndex: Int = 0
 
     var rotateAfterDisabled: Bool = true
     var lastImportReport: ImportReport?
 
-    var joeConnectionMode: ConnectionMode = .dns
-    var ignitionConnectionMode: ConnectionMode = .dns
-    var ppsrConnectionMode: ConnectionMode = .dns
-
-    var unifiedConnectionMode: ConnectionMode = .dns {
-        didSet { syncUnifiedConnectionMode() }
+    var connectionMode: ConnectionMode = .dns {
+        didSet { persistConnectionMode() }
     }
+
     var networkRegion: NetworkRegion = .usa {
         didSet { persistNetworkRegion() }
     }
@@ -101,229 +77,80 @@ class ProxyRotationService {
         var total: Int { added + duplicates + failed.count }
     }
 
-    private let persistKey = "saved_socks5_proxies_v2"
-    private let ignitionPersistKey = "saved_socks5_proxies_ignition_v1"
-    private let ppsrPersistKey = "saved_socks5_proxies_ppsr_v1"
-    private let connectionModePersistKey = "connection_modes_v1"
+    private let proxyPersistKey = "saved_socks5_proxies_ppsr_v1"
+    private let connectionModePersistKey = "connection_mode_ppsr_v1"
     private let networkRegionPersistKey = "network_region_v1"
-    private let unifiedModePersistKey = "unified_connection_mode_v1"
-
-    private let joeVPNPersistKey = "openvpn_configs_joe_v1"
-    private let ignitionVPNPersistKey = "openvpn_configs_ignition_v1"
-    private let ppsrVPNPersistKey = "openvpn_configs_ppsr_v1"
-
-    private let joeWGPersistKey = "wireguard_configs_joe_v1"
-    private let ignitionWGPersistKey = "wireguard_configs_ignition_v1"
-    private let ppsrWGPersistKey = "wireguard_configs_ppsr_v1"
+    private let vpnPersistKey = "openvpn_configs_ppsr_v1"
+    private let wgPersistKey = "wireguard_configs_ppsr_v1"
 
     private let logger = DebugLogger.shared
 
     init() {
         loadProxies()
-        loadIgnitionProxies()
-        loadPPSRProxies()
-        loadConnectionModes()
+        loadConnectionMode()
         loadVPNConfigs()
         loadWGConfigs()
         loadNetworkRegion()
-        loadUnifiedMode()
-        logger.log("ProxyRotation: init — joe:\(savedProxies.count) ign:\(ignitionProxies.count) ppsr:\(ppsrProxies.count) vpn:\(joeVPNConfigs.count+ignitionVPNConfigs.count+ppsrVPNConfigs.count) wg:\(joeWGConfigs.count+ignitionWGConfigs.count+ppsrWGConfigs.count) region:\(networkRegion.rawValue)", category: .proxy, level: .info)
+        logger.log("ProxyRotation: init — proxies:\(savedProxies.count) vpn:\(vpnConfigs.count) wg:\(wgConfigs.count) region:\(networkRegion.rawValue)", category: .proxy, level: .info)
     }
 
-    func setConnectionMode(_ mode: ConnectionMode, for target: ProxyTarget) {
-        switch target {
-        case .joe: joeConnectionMode = mode
-        case .ignition: ignitionConnectionMode = mode
-        case .ppsr: ppsrConnectionMode = mode
-        }
-        persistConnectionModes()
-    }
+    // MARK: - Convenience aliases for unified API callers
 
-    func setUnifiedConnectionMode(_ mode: ConnectionMode) {
-        unifiedConnectionMode = mode
-        joeConnectionMode = mode
-        ignitionConnectionMode = mode
-        ppsrConnectionMode = mode
-        persistConnectionModes()
-        persistUnifiedMode()
-        logger.log("ProxyRotation: unified connection mode set to \(mode.label)", category: .proxy, level: .success)
-    }
-
-    private func syncUnifiedConnectionMode() {
-        joeConnectionMode = unifiedConnectionMode
-        ignitionConnectionMode = unifiedConnectionMode
-        ppsrConnectionMode = unifiedConnectionMode
-        persistConnectionModes()
-    }
-
-    func syncProxiesAcrossTargets() {
-        ignitionProxies = savedProxies
-        ppsrProxies = savedProxies
-        persistIgnitionProxies()
-        persistPPSRProxies()
-        logger.log("ProxyRotation: synced \(savedProxies.count) proxies across all targets", category: .proxy, level: .info)
-    }
-
-    func syncVPNConfigsAcrossTargets() {
-        ignitionVPNConfigs = joeVPNConfigs
-        ppsrVPNConfigs = joeVPNConfigs
-        persistVPNConfigs(for: .ignition)
-        persistVPNConfigs(for: .ppsr)
-        logger.log("ProxyRotation: synced \(joeVPNConfigs.count) VPN configs across all targets", category: .vpn, level: .info)
-    }
-
-    func syncWGConfigsAcrossTargets() {
-        ignitionWGConfigs = joeWGConfigs
-        ppsrWGConfigs = joeWGConfigs
-        persistWGConfigs(for: .ignition)
-        persistWGConfigs(for: .ppsr)
-        logger.log("ProxyRotation: synced \(joeWGConfigs.count) WG configs across all targets", category: .vpn, level: .info)
-    }
-
-    func syncAllNetworkConfigsAcrossTargets() {
-        syncProxiesAcrossTargets()
-        syncVPNConfigsAcrossTargets()
-        syncWGConfigsAcrossTargets()
+    var unifiedConnectionMode: ConnectionMode {
+        get { connectionMode }
+        set { connectionMode = newValue }
     }
 
     var unifiedProxies: [ProxyConfig] { savedProxies }
-    var unifiedVPNConfigs: [OpenVPNConfig] { joeVPNConfigs }
-    var unifiedWGConfigs: [WireGuardConfig] { joeWGConfigs }
+    var unifiedVPNConfigs: [OpenVPNConfig] { vpnConfigs }
+    var unifiedWGConfigs: [WireGuardConfig] { wgConfigs }
+
+    func setUnifiedConnectionMode(_ mode: ConnectionMode) {
+        connectionMode = mode
+        logger.log("ProxyRotation: connection mode set to \(mode.label)", category: .proxy, level: .success)
+    }
 
     func importUnifiedProxy(_ text: String) -> ImportReport {
-        let report = bulkImportSOCKS5(text, forIgnition: false)
-        syncProxiesAcrossTargets()
-        return report
+        bulkImportSOCKS5(text)
     }
 
     func importUnifiedVPNConfig(_ config: OpenVPNConfig) {
-        importVPNConfig(config, for: .joe)
-        syncVPNConfigsAcrossTargets()
+        importVPNConfig(config)
     }
 
     func importUnifiedWGConfigs(_ configs: [WireGuardConfig]) -> ImportReport {
-        let report = bulkImportWGConfigs(configs, for: .joe)
-        syncWGConfigsAcrossTargets()
-        return report
+        bulkImportWGConfigs(configs)
     }
 
     func clearAllUnifiedProxies() {
-        removeAll(forIgnition: false)
-        removeAll(forIgnition: true)
-        removeAll(target: .ppsr)
+        removeAllProxies()
     }
 
     func clearAllUnifiedVPNConfigs() {
-        clearAllVPNConfigs(target: .joe)
-        clearAllVPNConfigs(target: .ignition)
-        clearAllVPNConfigs(target: .ppsr)
+        clearAllVPNConfigs()
     }
 
     func clearAllUnifiedWGConfigs() {
-        clearAllWGConfigs(target: .joe)
-        clearAllWGConfigs(target: .ignition)
-        clearAllWGConfigs(target: .ppsr)
+        clearAllWGConfigs()
     }
 
     func testAllUnifiedProxies() async {
-        await testAllProxies(forIgnition: false)
-        syncProxiesAcrossTargets()
+        await testAllProxies()
     }
 
     func testAllUnifiedVPNConfigs() async {
-        await testAllVPNConfigs(target: .joe)
-        syncVPNConfigsAcrossTargets()
+        await testAllVPNConfigs()
     }
 
     func testAllUnifiedWGConfigs() async {
-        await testAllWGConfigs(target: .joe)
-        syncWGConfigsAcrossTargets()
+        await testAllWGConfigs()
     }
 
-    private func persistNetworkRegion() {
-        UserDefaults.standard.set(networkRegion.rawValue, forKey: networkRegionPersistKey)
-    }
+    func syncAllNetworkConfigsAcrossTargets() {}
 
-    private func loadNetworkRegion() {
-        if let raw = UserDefaults.standard.string(forKey: networkRegionPersistKey),
-           let region = NetworkRegion(rawValue: raw) {
-            networkRegion = region
-        }
-    }
+    // MARK: - Proxy Import
 
-    private func persistUnifiedMode() {
-        UserDefaults.standard.set(unifiedConnectionMode.rawValue, forKey: unifiedModePersistKey)
-    }
-
-    private func loadUnifiedMode() {
-        if let raw = UserDefaults.standard.string(forKey: unifiedModePersistKey),
-           let mode = ConnectionMode(rawValue: raw) {
-            unifiedConnectionMode = mode
-        } else {
-            unifiedConnectionMode = joeConnectionMode
-        }
-    }
-
-    func connectionMode(for target: ProxyTarget) -> ConnectionMode {
-        switch target {
-        case .joe: joeConnectionMode
-        case .ignition: ignitionConnectionMode
-        case .ppsr: ppsrConnectionMode
-        }
-    }
-
-    func proxies(for target: ProxyTarget) -> [ProxyConfig] {
-        switch target {
-        case .joe: savedProxies
-        case .ignition: ignitionProxies
-        case .ppsr: ppsrProxies
-        }
-    }
-
-    func bulkImportSOCKS5(_ text: String, for target: ProxyTarget) -> ImportReport {
-        switch target {
-        case .joe: return bulkImportSOCKS5(text, forIgnition: false)
-        case .ignition: return bulkImportSOCKS5(text, forIgnition: true)
-        case .ppsr: return bulkImportSOCKS5PPSR(text)
-        }
-    }
-
-    func bulkImportSOCKS5(_ text: String, forIgnition: Bool = false) -> ImportReport {
-        let expandedLines = expandProxyLines(text)
-
-        var added = 0
-        var duplicates = 0
-        var failed: [String] = []
-
-        let targetList = forIgnition ? ignitionProxies : savedProxies
-        for line in expandedLines {
-            if let proxy = parseProxyLine(line) {
-                let isDuplicate = targetList.contains { $0.host == proxy.host && $0.port == proxy.port && $0.username == proxy.username }
-                if isDuplicate {
-                    duplicates += 1
-                } else {
-                    if forIgnition {
-                        ignitionProxies.append(proxy)
-                    } else {
-                        savedProxies.append(proxy)
-                    }
-                    added += 1
-                }
-            } else {
-                failed.append(line)
-            }
-        }
-
-        if added > 0 {
-            if forIgnition { persistIgnitionProxies() } else { persistProxies() }
-        }
-
-        let report = ImportReport(added: added, duplicates: duplicates, failed: failed)
-        lastImportReport = report
-        return report
-    }
-
-    private func bulkImportSOCKS5PPSR(_ text: String) -> ImportReport {
+    func bulkImportSOCKS5(_ text: String) -> ImportReport {
         let expandedLines = expandProxyLines(text)
 
         var added = 0
@@ -332,11 +159,11 @@ class ProxyRotationService {
 
         for line in expandedLines {
             if let proxy = parseProxyLine(line) {
-                let isDuplicate = ppsrProxies.contains { $0.host == proxy.host && $0.port == proxy.port && $0.username == proxy.username }
+                let isDuplicate = savedProxies.contains { $0.host == proxy.host && $0.port == proxy.port && $0.username == proxy.username }
                 if isDuplicate {
                     duplicates += 1
                 } else {
-                    ppsrProxies.append(proxy)
+                    savedProxies.append(proxy)
                     added += 1
                 }
             } else {
@@ -344,7 +171,7 @@ class ProxyRotationService {
             }
         }
 
-        if added > 0 { persistPPSRProxies() }
+        if added > 0 { persistProxies() }
         let report = ImportReport(added: added, duplicates: duplicates, failed: failed)
         lastImportReport = report
         return report
@@ -381,7 +208,6 @@ class ProxyRotationService {
         }
 
         line = line.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
-
         guard !line.isEmpty else { return nil }
 
         var username: String?
@@ -420,7 +246,6 @@ class ProxyRotationService {
         }
 
         hostPort = hostPort.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
-
         guard !hostPort.isEmpty else { return nil }
 
         let hpParts = hostPort.components(separatedBy: ":")
@@ -458,25 +283,9 @@ class ProxyRotationService {
         }
     }
 
-    func nextWorkingProxy(for target: ProxyTarget) -> ProxyConfig? {
-        switch target {
-        case .joe: return nextWorkingProxy(forIgnition: false)
-        case .ignition: return nextWorkingProxy(forIgnition: true)
-        case .ppsr: return nextWorkingPPSRProxy()
-        }
-    }
+    // MARK: - Proxy Rotation
 
-    func nextWorkingProxy(forIgnition: Bool = false) -> ProxyConfig? {
-        if forIgnition {
-            let working = ignitionProxies.filter(\.isWorking)
-            guard !working.isEmpty else {
-                return ignitionProxies.isEmpty ? nil : ignitionProxies[currentIgnitionProxyIndex % ignitionProxies.count]
-            }
-            currentIgnitionProxyIndex = currentIgnitionProxyIndex % working.count
-            let proxy = working[currentIgnitionProxyIndex]
-            currentIgnitionProxyIndex += 1
-            return proxy
-        }
+    func nextWorkingProxy() -> ProxyConfig? {
         let working = savedProxies.filter(\.isWorking)
         guard !working.isEmpty else {
             return savedProxies.isEmpty ? nil : savedProxies[currentProxyIndex % savedProxies.count]
@@ -487,134 +296,72 @@ class ProxyRotationService {
         return proxy
     }
 
-    private func nextWorkingPPSRProxy() -> ProxyConfig? {
-        let working = ppsrProxies.filter(\.isWorking)
-        guard !working.isEmpty else {
-            return ppsrProxies.isEmpty ? nil : ppsrProxies[currentPPSRProxyIndex % ppsrProxies.count]
-        }
-        currentPPSRProxyIndex = currentPPSRProxyIndex % working.count
-        let proxy = working[currentPPSRProxyIndex]
-        currentPPSRProxyIndex += 1
-        return proxy
-    }
-
     // MARK: - WireGuard Config Rotation
 
-    func nextEnabledWGConfig(for target: ProxyTarget) -> WireGuardConfig? {
-        let configs = wgConfigs(for: target).filter { $0.isEnabled }
+    func nextEnabledWGConfig() -> WireGuardConfig? {
+        let configs = wgConfigs.filter { $0.isEnabled }
         guard !configs.isEmpty else { return nil }
-
-        switch target {
-        case .joe:
-            let idx = currentJoeWGIndex % configs.count
-            currentJoeWGIndex = idx + 1
-            return configs[idx]
-        case .ignition:
-            let idx = currentIgnitionWGIndex % configs.count
-            currentIgnitionWGIndex = idx + 1
-            return configs[idx]
-        case .ppsr:
-            let idx = currentPPSRWGIndex % configs.count
-            currentPPSRWGIndex = idx + 1
-            return configs[idx]
-        }
+        let idx = currentWGIndex % configs.count
+        currentWGIndex = idx + 1
+        return configs[idx]
     }
 
-    func nextReachableWGConfig(for target: ProxyTarget) -> WireGuardConfig? {
-        let reachable = wgConfigs(for: target).filter { $0.isEnabled && $0.isReachable }
+    func nextReachableWGConfig() -> WireGuardConfig? {
+        let reachable = wgConfigs.filter { $0.isEnabled && $0.isReachable }
         if !reachable.isEmpty {
-            switch target {
-            case .joe:
-                let idx = currentJoeWGIndex % reachable.count
-                currentJoeWGIndex = idx + 1
-                return reachable[idx]
-            case .ignition:
-                let idx = currentIgnitionWGIndex % reachable.count
-                currentIgnitionWGIndex = idx + 1
-                return reachable[idx]
-            case .ppsr:
-                let idx = currentPPSRWGIndex % reachable.count
-                currentPPSRWGIndex = idx + 1
-                return reachable[idx]
-            }
+            let idx = currentWGIndex % reachable.count
+            currentWGIndex = idx + 1
+            return reachable[idx]
         }
-        return nextEnabledWGConfig(for: target)
+        return nextEnabledWGConfig()
     }
 
     // MARK: - OpenVPN Config Rotation
 
-    func nextEnabledOVPNConfig(for target: ProxyTarget) -> OpenVPNConfig? {
-        let configs = vpnConfigs(for: target).filter { $0.isEnabled }
+    func nextEnabledOVPNConfig() -> OpenVPNConfig? {
+        let configs = vpnConfigs.filter { $0.isEnabled }
         guard !configs.isEmpty else { return nil }
-
-        switch target {
-        case .joe:
-            let idx = currentJoeOVPNIndex % configs.count
-            currentJoeOVPNIndex = idx + 1
-            return configs[idx]
-        case .ignition:
-            let idx = currentIgnitionOVPNIndex % configs.count
-            currentIgnitionOVPNIndex = idx + 1
-            return configs[idx]
-        case .ppsr:
-            let idx = currentPPSROVPNIndex % configs.count
-            currentPPSROVPNIndex = idx + 1
-            return configs[idx]
-        }
+        let idx = currentOVPNIndex % configs.count
+        currentOVPNIndex = idx + 1
+        return configs[idx]
     }
 
-    func nextReachableOVPNConfig(for target: ProxyTarget) -> OpenVPNConfig? {
-        let reachable = vpnConfigs(for: target).filter { $0.isEnabled && $0.isReachable }
+    func nextReachableOVPNConfig() -> OpenVPNConfig? {
+        let reachable = vpnConfigs.filter { $0.isEnabled && $0.isReachable }
         if !reachable.isEmpty {
-            switch target {
-            case .joe:
-                let idx = currentJoeOVPNIndex % reachable.count
-                currentJoeOVPNIndex = idx + 1
-                return reachable[idx]
-            case .ignition:
-                let idx = currentIgnitionOVPNIndex % reachable.count
-                currentIgnitionOVPNIndex = idx + 1
-                return reachable[idx]
-            case .ppsr:
-                let idx = currentPPSROVPNIndex % reachable.count
-                currentPPSROVPNIndex = idx + 1
-                return reachable[idx]
-            }
+            let idx = currentOVPNIndex % reachable.count
+            currentOVPNIndex = idx + 1
+            return reachable[idx]
         }
-        return nextEnabledOVPNConfig(for: target)
+        return nextEnabledOVPNConfig()
     }
 
     func resetRotationIndexes() {
         currentProxyIndex = 0
-        currentIgnitionProxyIndex = 0
-        currentPPSRProxyIndex = 0
-        currentJoeWGIndex = 0
-        currentIgnitionWGIndex = 0
-        currentPPSRWGIndex = 0
-        currentJoeOVPNIndex = 0
-        currentIgnitionOVPNIndex = 0
-        currentPPSROVPNIndex = 0
+        currentWGIndex = 0
+        currentOVPNIndex = 0
     }
 
-    func networkSummary(for target: ProxyTarget) -> String {
-        let mode = connectionMode(for: target)
-        switch mode {
+    func networkSummary() -> String {
+        switch connectionMode {
         case .dns:
             return "Direct (DNS)"
         case .proxy:
-            let count = proxies(for: target).filter(\.isWorking).count
-            let total = proxies(for: target).count
+            let count = savedProxies.filter(\.isWorking).count
+            let total = savedProxies.count
             return "SOCKS5 (\(count)/\(total) working)"
         case .wireguard:
-            let enabled = wgConfigs(for: target).filter { $0.isEnabled }.count
-            let total = wgConfigs(for: target).count
+            let enabled = wgConfigs.filter { $0.isEnabled }.count
+            let total = wgConfigs.count
             return "WireGuard (\(enabled)/\(total) enabled)"
         case .openvpn:
-            let enabled = vpnConfigs(for: target).filter { $0.isEnabled }.count
-            let total = vpnConfigs(for: target).count
+            let enabled = vpnConfigs.filter { $0.isEnabled }.count
+            let total = vpnConfigs.count
             return "OpenVPN (\(enabled)/\(total) enabled)"
         }
     }
+
+    // MARK: - Proxy Status
 
     func markProxyWorking(_ proxy: ProxyConfig) {
         if let idx = savedProxies.firstIndex(where: { $0.id == proxy.id }) {
@@ -622,18 +369,6 @@ class ProxyRotationService {
             savedProxies[idx].lastTested = Date()
             savedProxies[idx].failCount = 0
             persistProxies()
-        }
-        if let idx = ignitionProxies.firstIndex(where: { $0.id == proxy.id }) {
-            ignitionProxies[idx].isWorking = true
-            ignitionProxies[idx].lastTested = Date()
-            ignitionProxies[idx].failCount = 0
-            persistIgnitionProxies()
-        }
-        if let idx = ppsrProxies.firstIndex(where: { $0.id == proxy.id }) {
-            ppsrProxies[idx].isWorking = true
-            ppsrProxies[idx].lastTested = Date()
-            ppsrProxies[idx].failCount = 0
-            persistPPSRProxies()
         }
     }
 
@@ -646,225 +381,66 @@ class ProxyRotationService {
             }
             persistProxies()
         }
-        if let idx = ignitionProxies.firstIndex(where: { $0.id == proxy.id }) {
-            ignitionProxies[idx].failCount += 1
-            ignitionProxies[idx].lastTested = Date()
-            if ignitionProxies[idx].failCount >= 3 {
-                ignitionProxies[idx].isWorking = false
-            }
-            persistIgnitionProxies()
-        }
-        if let idx = ppsrProxies.firstIndex(where: { $0.id == proxy.id }) {
-            ppsrProxies[idx].failCount += 1
-            ppsrProxies[idx].lastTested = Date()
-            if ppsrProxies[idx].failCount >= 3 {
-                ppsrProxies[idx].isWorking = false
-            }
-            persistPPSRProxies()
-        }
     }
 
-    func removeProxy(_ proxy: ProxyConfig, fromIgnition: Bool = false) {
-        if fromIgnition {
-            ignitionProxies.removeAll { $0.id == proxy.id }
-            persistIgnitionProxies()
-        } else {
-            savedProxies.removeAll { $0.id == proxy.id }
-            persistProxies()
-        }
+    func removeProxy(_ proxy: ProxyConfig) {
+        savedProxies.removeAll { $0.id == proxy.id }
+        persistProxies()
     }
 
-    func removeProxy(_ proxy: ProxyConfig, target: ProxyTarget) {
-        switch target {
-        case .joe:
-            savedProxies.removeAll { $0.id == proxy.id }
-            persistProxies()
-        case .ignition:
-            ignitionProxies.removeAll { $0.id == proxy.id }
-            persistIgnitionProxies()
-        case .ppsr:
-            ppsrProxies.removeAll { $0.id == proxy.id }
-            persistPPSRProxies()
-        }
+    func removeAllProxies() {
+        savedProxies.removeAll()
+        currentProxyIndex = 0
+        persistProxies()
     }
 
-    func removeAll(forIgnition: Bool = false) {
-        if forIgnition {
-            ignitionProxies.removeAll()
-            currentIgnitionProxyIndex = 0
-            persistIgnitionProxies()
-        } else {
-            savedProxies.removeAll()
-            currentProxyIndex = 0
-            persistProxies()
-        }
+    func removeDead() {
+        savedProxies.removeAll { !$0.isWorking && $0.lastTested != nil }
+        persistProxies()
     }
 
-    func removeAll(target: ProxyTarget) {
-        switch target {
-        case .joe: removeAll(forIgnition: false)
-        case .ignition: removeAll(forIgnition: true)
-        case .ppsr:
-            ppsrProxies.removeAll()
-            currentPPSRProxyIndex = 0
-            persistPPSRProxies()
+    func resetAllStatus() {
+        for i in savedProxies.indices {
+            savedProxies[i].isWorking = false
+            savedProxies[i].lastTested = nil
+            savedProxies[i].failCount = 0
         }
+        persistProxies()
     }
 
-    func removeDead(forIgnition: Bool = false) {
-        if forIgnition {
-            ignitionProxies.removeAll { !$0.isWorking && $0.lastTested != nil }
-            persistIgnitionProxies()
-        } else {
-            savedProxies.removeAll { !$0.isWorking && $0.lastTested != nil }
-            persistProxies()
-        }
-    }
+    // MARK: - Proxy Testing
 
-    func removeDead(target: ProxyTarget) {
-        switch target {
-        case .joe: removeDead(forIgnition: false)
-        case .ignition: removeDead(forIgnition: true)
-        case .ppsr:
-            ppsrProxies.removeAll { !$0.isWorking && $0.lastTested != nil }
-            persistPPSRProxies()
-        }
-    }
-
-    func resetAllStatus(forIgnition: Bool = false) {
-        if forIgnition {
-            for i in ignitionProxies.indices {
-                ignitionProxies[i].isWorking = false
-                ignitionProxies[i].lastTested = nil
-                ignitionProxies[i].failCount = 0
-            }
-            persistIgnitionProxies()
-        } else {
-            for i in savedProxies.indices {
-                savedProxies[i].isWorking = false
-                savedProxies[i].lastTested = nil
-                savedProxies[i].failCount = 0
-            }
-            persistProxies()
-        }
-    }
-
-    func resetAllStatus(target: ProxyTarget) {
-        switch target {
-        case .joe: resetAllStatus(forIgnition: false)
-        case .ignition: resetAllStatus(forIgnition: true)
-        case .ppsr:
-            for i in ppsrProxies.indices {
-                ppsrProxies[i].isWorking = false
-                ppsrProxies[i].lastTested = nil
-                ppsrProxies[i].failCount = 0
-            }
-            persistPPSRProxies()
-        }
-    }
-
-    func testAllProxies(forIgnition: Bool = false) async {
+    func testAllProxies() async {
         let maxConcurrent = 5
-        if forIgnition {
-            let proxySnapshot = ignitionProxies
-            await withTaskGroup(of: (UUID, Bool).self) { group in
-                var launched = 0
-                for proxy in proxySnapshot {
-                    if launched >= maxConcurrent {
-                        if let result = await group.next() {
-                            applyTestResult(result, forIgnition: true)
-                        }
+        let proxySnapshot = savedProxies
+        await withTaskGroup(of: (UUID, Bool).self) { group in
+            var launched = 0
+            for proxy in proxySnapshot {
+                if launched >= maxConcurrent {
+                    if let result = await group.next() {
+                        applyTestResult(result)
                     }
-                    group.addTask {
-                        let working = await self.testSingleProxy(proxy)
-                        return (proxy.id, working)
-                    }
-                    launched += 1
                 }
-                for await result in group {
-                    applyTestResult(result, forIgnition: true)
+                group.addTask {
+                    let working = await self.testSingleProxy(proxy)
+                    return (proxy.id, working)
                 }
+                launched += 1
             }
-            persistIgnitionProxies()
-        } else {
-            let proxySnapshot = savedProxies
-            await withTaskGroup(of: (UUID, Bool).self) { group in
-                var launched = 0
-                for proxy in proxySnapshot {
-                    if launched >= maxConcurrent {
-                        if let result = await group.next() {
-                            applyTestResult(result, forIgnition: false)
-                        }
-                    }
-                    group.addTask {
-                        let working = await self.testSingleProxy(proxy)
-                        return (proxy.id, working)
-                    }
-                    launched += 1
-                }
-                for await result in group {
-                    applyTestResult(result, forIgnition: false)
-                }
+            for await result in group {
+                applyTestResult(result)
             }
-            persistProxies()
         }
+        persistProxies()
     }
 
-    func testAllProxies(target: ProxyTarget) async {
-        switch target {
-        case .joe: await testAllProxies(forIgnition: false)
-        case .ignition: await testAllProxies(forIgnition: true)
-        case .ppsr:
-            let maxConcurrent = 5
-            let proxySnapshot = ppsrProxies
-            await withTaskGroup(of: (UUID, Bool).self) { group in
-                var launched = 0
-                for proxy in proxySnapshot {
-                    if launched >= maxConcurrent {
-                        if let result = await group.next() {
-                            applyPPSRTestResult(result)
-                        }
-                    }
-                    group.addTask {
-                        let working = await self.testSingleProxy(proxy)
-                        return (proxy.id, working)
-                    }
-                    launched += 1
-                }
-                for await result in group {
-                    applyPPSRTestResult(result)
-                }
-            }
-            persistPPSRProxies()
-        }
-    }
-
-    private func applyTestResult(_ result: (UUID, Bool), forIgnition: Bool) {
+    private func applyTestResult(_ result: (UUID, Bool)) {
         let (proxyId, working) = result
-        if forIgnition {
-            if let idx = ignitionProxies.firstIndex(where: { $0.id == proxyId }) {
-                ignitionProxies[idx].isWorking = working
-                ignitionProxies[idx].lastTested = Date()
-                if working { ignitionProxies[idx].failCount = 0 }
-                else { ignitionProxies[idx].failCount += 1 }
-            }
-        } else {
-            if let idx = savedProxies.firstIndex(where: { $0.id == proxyId }) {
-                savedProxies[idx].isWorking = working
-                savedProxies[idx].lastTested = Date()
-                if working { savedProxies[idx].failCount = 0 }
-                else { savedProxies[idx].failCount += 1 }
-            }
-        }
-    }
-
-    private func applyPPSRTestResult(_ result: (UUID, Bool)) {
-        let (proxyId, working) = result
-        if let idx = ppsrProxies.firstIndex(where: { $0.id == proxyId }) {
-            ppsrProxies[idx].isWorking = working
-            ppsrProxies[idx].lastTested = Date()
-            if working { ppsrProxies[idx].failCount = 0 }
-            else { ppsrProxies[idx].failCount += 1 }
+        if let idx = savedProxies.firstIndex(where: { $0.id == proxyId }) {
+            savedProxies[idx].isWorking = working
+            savedProxies[idx].lastTested = Date()
+            if working { savedProxies[idx].failCount = 0 }
+            else { savedProxies[idx].failCount += 1 }
         }
     }
 
@@ -914,13 +490,8 @@ class ProxyRotationService {
         return false
     }
 
-    func exportProxies(forIgnition: Bool = false) -> String {
-        let list = forIgnition ? ignitionProxies : savedProxies
-        return formatProxyList(list)
-    }
-
-    func exportProxies(target: ProxyTarget) -> String {
-        formatProxyList(proxies(for: target))
+    func exportProxies() -> String {
+        formatProxyList(savedProxies)
     }
 
     private func formatProxyList(_ list: [ProxyConfig]) -> String {
@@ -937,28 +508,252 @@ class ProxyRotationService {
         savedProxies
     }
 
-    func proxies(forIgnition: Bool) -> [ProxyConfig] {
-        forIgnition ? ignitionProxies : savedProxies
+    // MARK: - VPN Configs
+
+    func importVPNConfig(_ config: OpenVPNConfig) {
+        guard !vpnConfigs.contains(where: { $0.remoteHost == config.remoteHost && $0.remotePort == config.remotePort }) else { return }
+        vpnConfigs.append(config)
+        persistVPNConfigs()
     }
 
-    private func persistIgnitionProxies() {
-        persistProxyList(ignitionProxies, key: ignitionPersistKey)
+    func removeVPNConfig(_ config: OpenVPNConfig) {
+        vpnConfigs.removeAll { $0.id == config.id }
+        persistVPNConfigs()
     }
 
-    private func loadIgnitionProxies() {
-        ignitionProxies = loadProxyList(key: ignitionPersistKey)
+    func toggleVPNConfig(_ config: OpenVPNConfig, enabled: Bool) {
+        if let idx = vpnConfigs.firstIndex(where: { $0.id == config.id }) { vpnConfigs[idx].isEnabled = enabled }
+        persistVPNConfigs()
     }
+
+    func markVPNConfigReachable(_ config: OpenVPNConfig, reachable: Bool, latencyMs: Int? = nil) {
+        if let idx = vpnConfigs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) {
+            vpnConfigs[idx].isReachable = reachable
+            vpnConfigs[idx].lastTested = Date()
+            vpnConfigs[idx].lastLatencyMs = latencyMs
+            if reachable {
+                vpnConfigs[idx].failCount = 0
+                vpnConfigs[idx].isEnabled = true
+            } else {
+                vpnConfigs[idx].failCount += 1
+                if vpnConfigs[idx].failCount >= 2 { vpnConfigs[idx].isEnabled = false }
+            }
+        }
+        persistVPNConfigs()
+    }
+
+    func testAllVPNConfigs() async {
+        guard !vpnConfigs.isEmpty else { return }
+        let maxConcurrent = 8
+        let snapshot = vpnConfigs
+        await withTaskGroup(of: (String, Bool, Int).self) { group in
+            var launched = 0
+            for config in snapshot {
+                if launched >= maxConcurrent {
+                    if let result = await group.next() {
+                        applyVPNTestResult(result)
+                    }
+                }
+                group.addTask {
+                    let (reachable, latency) = await self.testOpenVPNEndpointReachability(config)
+                    return (config.uniqueKey, reachable, latency)
+                }
+                launched += 1
+            }
+            for await result in group {
+                applyVPNTestResult(result)
+            }
+        }
+        persistVPNConfigs()
+    }
+
+    private func applyVPNTestResult(_ result: (String, Bool, Int)) {
+        let (uniqueKey, reachable, latency) = result
+        if let idx = vpnConfigs.firstIndex(where: { $0.uniqueKey == uniqueKey }) {
+            vpnConfigs[idx].isReachable = reachable
+            vpnConfigs[idx].lastTested = Date()
+            vpnConfigs[idx].lastLatencyMs = reachable ? latency : nil
+            if reachable {
+                vpnConfigs[idx].failCount = 0
+                vpnConfigs[idx].isEnabled = true
+            } else {
+                vpnConfigs[idx].failCount += 1
+                if vpnConfigs[idx].failCount >= 2 { vpnConfigs[idx].isEnabled = false }
+            }
+        }
+    }
+
+    nonisolated func testOpenVPNEndpointReachability(_ config: OpenVPNConfig) async -> (Bool, Int) {
+        let host = config.remoteHost
+        let port = config.remotePort
+        let start = Date()
+
+        let dnsOk = await resolveHost(host)
+        if !dnsOk {
+            let dohOk = await resolveHostViaDoH(host)
+            if !dohOk {
+                Task { @MainActor in
+                    self.logger.log("VPN reachability: DNS failed for \(host) (system + DoH)", category: .vpn, level: .warning)
+                    self.logger.logHealing(category: .vpn, originalError: "DNS resolution failed for \(host)", healingAction: "Tried DoH fallback — also failed", succeeded: false)
+                }
+                return (false, 0)
+            }
+            Task { @MainActor in
+                self.logger.logHealing(category: .vpn, originalError: "System DNS failed for \(host)", healingAction: "DoH fallback succeeded", succeeded: true)
+            }
+        }
+
+        if await testTCPConnection(host: host, port: port, timeoutSeconds: 8) {
+            return (true, Int(Date().timeIntervalSince(start) * 1000))
+        }
+
+        Task { @MainActor in
+            self.logger.log("VPN reachability: TCP failed for \(host):\(port)", category: .vpn, level: .error, metadata: [
+                "host": host, "port": "\(port)", "elapsed": "\(Int(Date().timeIntervalSince(start) * 1000))ms"
+            ])
+        }
+        return (false, 0)
+    }
+
+    func clearAllVPNConfigs() {
+        vpnConfigs.removeAll()
+        persistVPNConfigs()
+    }
+
+    func removeUnreachableVPNConfigs() {
+        vpnConfigs.removeAll { !$0.isReachable && $0.lastTested != nil }
+        persistVPNConfigs()
+    }
+
+    // MARK: - WireGuard Configs
+
+    func importWGConfig(_ config: WireGuardConfig) {
+        guard !wgConfigs.contains(where: { $0.uniqueKey == config.uniqueKey }) else { return }
+        wgConfigs.append(config)
+        persistWGConfigs()
+    }
+
+    func bulkImportWGConfigs(_ configs: [WireGuardConfig]) -> ImportReport {
+        var added = 0
+        var duplicates = 0
+        let failed: [String] = []
+        var seenKeys = Set(wgConfigs.map(\.uniqueKey))
+        for config in configs {
+            if seenKeys.contains(config.uniqueKey) {
+                duplicates += 1
+            } else {
+                seenKeys.insert(config.uniqueKey)
+                wgConfigs.append(config)
+                added += 1
+            }
+        }
+        if added > 0 { persistWGConfigs() }
+        let report = ImportReport(added: added, duplicates: duplicates, failed: failed)
+        lastImportReport = report
+        return report
+    }
+
+    func removeWGConfig(_ config: WireGuardConfig) {
+        wgConfigs.removeAll { $0.id == config.id || $0.uniqueKey == config.uniqueKey }
+        persistWGConfigs()
+    }
+
+    func toggleWGConfig(_ config: WireGuardConfig, enabled: Bool) {
+        if let idx = wgConfigs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) { wgConfigs[idx].isEnabled = enabled }
+        persistWGConfigs()
+    }
+
+    func clearAllWGConfigs() {
+        wgConfigs.removeAll()
+        persistWGConfigs()
+    }
+
+    func markWGConfigReachable(_ config: WireGuardConfig, reachable: Bool) {
+        if let idx = wgConfigs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) {
+            wgConfigs[idx].isReachable = reachable
+            wgConfigs[idx].lastTested = Date()
+            if !reachable { wgConfigs[idx].isEnabled = false }
+        }
+        persistWGConfigs()
+    }
+
+    func removeUnreachableWGConfigs() {
+        wgConfigs.removeAll { !$0.isReachable && $0.lastTested != nil }
+        persistWGConfigs()
+    }
+
+    func testAllWGConfigs() async {
+        guard !wgConfigs.isEmpty else { return }
+        let maxConcurrent = 8
+        let snapshot = wgConfigs
+        await withTaskGroup(of: (String, Bool).self) { group in
+            var launched = 0
+            for config in snapshot {
+                if launched >= maxConcurrent {
+                    if let result = await group.next() {
+                        applyWGTestResult(result)
+                    }
+                }
+                group.addTask {
+                    let reachable = await self.testWGEndpointReachability(config)
+                    return (config.uniqueKey, reachable)
+                }
+                launched += 1
+            }
+            for await result in group {
+                applyWGTestResult(result)
+            }
+        }
+        persistWGConfigs()
+    }
+
+    private func applyWGTestResult(_ result: (String, Bool)) {
+        let (uniqueKey, reachable) = result
+        if let idx = wgConfigs.firstIndex(where: { $0.uniqueKey == uniqueKey }) {
+            wgConfigs[idx].isReachable = reachable
+            wgConfigs[idx].lastTested = Date()
+            if !reachable { wgConfigs[idx].isEnabled = false }
+        }
+    }
+
+    nonisolated func testWGEndpointReachability(_ config: WireGuardConfig) async -> Bool {
+        let host = config.endpointHost
+
+        var dnsReachable = await resolveHost(host)
+        if !dnsReachable {
+            dnsReachable = await resolveHostViaDoH(host)
+            if !dnsReachable {
+                Task { @MainActor in
+                    self.logger.log("WG reachability: DNS failed for \(host) (system + DoH)", category: .vpn, level: .warning)
+                }
+                return false
+            }
+            Task { @MainActor in
+                self.logger.logHealing(category: .vpn, originalError: "System DNS failed for \(host)", healingAction: "DoH fallback succeeded", succeeded: true)
+            }
+        }
+
+        return true
+    }
+
+    nonisolated func testWGEndpointWithLatency(_ config: WireGuardConfig) async -> (Bool, Int) {
+        let start = Date()
+        let reachable = await testWGEndpointReachability(config)
+        let latency = Int(Date().timeIntervalSince(start) * 1000)
+        return (reachable, latency)
+    }
+
+    // MARK: - Persistence
 
     private func persistProxies() {
-        persistProxyList(savedProxies, key: persistKey)
+        persistProxyList(savedProxies, key: proxyPersistKey)
     }
 
-    private func persistPPSRProxies() {
-        persistProxyList(ppsrProxies, key: ppsrPersistKey)
-    }
-
-    private func loadPPSRProxies() {
-        ppsrProxies = loadProxyList(key: ppsrPersistKey)
+    private func loadProxies() {
+        let loaded = loadProxyList(key: proxyPersistKey)
+        if !loaded.isEmpty {
+            savedProxies = loaded
+        }
     }
 
     private func persistProxyList(_ list: [ProxyConfig], key: String) {
@@ -1008,392 +803,63 @@ class ProxyRotationService {
         }
     }
 
-    private func persistConnectionModes() {
-        let dict: [String: String] = [
-            "joe": joeConnectionMode.rawValue,
-            "ignition": ignitionConnectionMode.rawValue,
-            "ppsr": ppsrConnectionMode.rawValue,
-        ]
-        UserDefaults.standard.set(dict, forKey: connectionModePersistKey)
+    private func persistConnectionMode() {
+        UserDefaults.standard.set(connectionMode.rawValue, forKey: connectionModePersistKey)
     }
 
-    private func loadConnectionModes() {
-        guard let dict = UserDefaults.standard.dictionary(forKey: connectionModePersistKey) as? [String: String] else { return }
-        if let joe = dict["joe"], let mode = ConnectionMode(rawValue: joe) { joeConnectionMode = mode }
-        if let ign = dict["ignition"], let mode = ConnectionMode(rawValue: ign) { ignitionConnectionMode = mode }
-        if let ppsr = dict["ppsr"], let mode = ConnectionMode(rawValue: ppsr) { ppsrConnectionMode = mode }
-    }
-
-    func vpnConfigs(for target: ProxyTarget) -> [OpenVPNConfig] {
-        switch target {
-        case .joe: joeVPNConfigs
-        case .ignition: ignitionVPNConfigs
-        case .ppsr: ppsrVPNConfigs
+    private func loadConnectionMode() {
+        if let raw = UserDefaults.standard.string(forKey: connectionModePersistKey),
+           let mode = ConnectionMode(rawValue: raw) {
+            connectionMode = mode
         }
     }
 
-    func importVPNConfig(_ config: OpenVPNConfig, for target: ProxyTarget) {
-        switch target {
-        case .joe:
-            guard !joeVPNConfigs.contains(where: { $0.remoteHost == config.remoteHost && $0.remotePort == config.remotePort }) else { return }
-            joeVPNConfigs.append(config)
-        case .ignition:
-            guard !ignitionVPNConfigs.contains(where: { $0.remoteHost == config.remoteHost && $0.remotePort == config.remotePort }) else { return }
-            ignitionVPNConfigs.append(config)
-        case .ppsr:
-            guard !ppsrVPNConfigs.contains(where: { $0.remoteHost == config.remoteHost && $0.remotePort == config.remotePort }) else { return }
-            ppsrVPNConfigs.append(config)
-        }
-        persistVPNConfigs(for: target)
+    private func persistNetworkRegion() {
+        UserDefaults.standard.set(networkRegion.rawValue, forKey: networkRegionPersistKey)
     }
 
-    func removeVPNConfig(_ config: OpenVPNConfig, target: ProxyTarget) {
-        switch target {
-        case .joe: joeVPNConfigs.removeAll { $0.id == config.id }
-        case .ignition: ignitionVPNConfigs.removeAll { $0.id == config.id }
-        case .ppsr: ppsrVPNConfigs.removeAll { $0.id == config.id }
-        }
-        persistVPNConfigs(for: target)
-    }
-
-    func toggleVPNConfig(_ config: OpenVPNConfig, target: ProxyTarget, enabled: Bool) {
-        switch target {
-        case .joe:
-            if let idx = joeVPNConfigs.firstIndex(where: { $0.id == config.id }) { joeVPNConfigs[idx].isEnabled = enabled }
-        case .ignition:
-            if let idx = ignitionVPNConfigs.firstIndex(where: { $0.id == config.id }) { ignitionVPNConfigs[idx].isEnabled = enabled }
-        case .ppsr:
-            if let idx = ppsrVPNConfigs.firstIndex(where: { $0.id == config.id }) { ppsrVPNConfigs[idx].isEnabled = enabled }
-        }
-        persistVPNConfigs(for: target)
-    }
-
-    func markVPNConfigReachable(_ config: OpenVPNConfig, target: ProxyTarget, reachable: Bool, latencyMs: Int? = nil) {
-        func update(_ configs: inout [OpenVPNConfig]) {
-            if let idx = configs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) {
-                configs[idx].isReachable = reachable
-                configs[idx].lastTested = Date()
-                configs[idx].lastLatencyMs = latencyMs
-                if reachable {
-                    configs[idx].failCount = 0
-                    configs[idx].isEnabled = true
-                } else {
-                    configs[idx].failCount += 1
-                    if configs[idx].failCount >= 2 { configs[idx].isEnabled = false }
-                }
-            }
-        }
-        switch target {
-        case .joe: update(&joeVPNConfigs)
-        case .ignition: update(&ignitionVPNConfigs)
-        case .ppsr: update(&ppsrVPNConfigs)
-        }
-        persistVPNConfigs(for: target)
-    }
-
-    func testAllVPNConfigs(target: ProxyTarget) async {
-        let configs = vpnConfigs(for: target)
-        guard !configs.isEmpty else { return }
-        let maxConcurrent = 8
-        await withTaskGroup(of: (String, Bool, Int).self) { group in
-            var launched = 0
-            for config in configs {
-                if launched >= maxConcurrent {
-                    if let result = await group.next() {
-                        applyVPNTestResult(result, target: target)
-                    }
-                }
-                group.addTask {
-                    let (reachable, latency) = await self.testOpenVPNEndpointReachability(config)
-                    return (config.uniqueKey, reachable, latency)
-                }
-                launched += 1
-            }
-            for await result in group {
-                applyVPNTestResult(result, target: target)
-            }
-        }
-        persistVPNConfigs(for: target)
-    }
-
-    private func applyVPNTestResult(_ result: (String, Bool, Int), target: ProxyTarget) {
-        let (uniqueKey, reachable, latency) = result
-        func update(_ configs: inout [OpenVPNConfig]) {
-            if let idx = configs.firstIndex(where: { $0.uniqueKey == uniqueKey }) {
-                configs[idx].isReachable = reachable
-                configs[idx].lastTested = Date()
-                configs[idx].lastLatencyMs = reachable ? latency : nil
-                if reachable {
-                    configs[idx].failCount = 0
-                    configs[idx].isEnabled = true
-                } else {
-                    configs[idx].failCount += 1
-                    if configs[idx].failCount >= 2 { configs[idx].isEnabled = false }
-                }
-            }
-        }
-        switch target {
-        case .joe: update(&joeVPNConfigs)
-        case .ignition: update(&ignitionVPNConfigs)
-        case .ppsr: update(&ppsrVPNConfigs)
+    private func loadNetworkRegion() {
+        if let raw = UserDefaults.standard.string(forKey: networkRegionPersistKey),
+           let region = NetworkRegion(rawValue: raw) {
+            networkRegion = region
         }
     }
 
-    nonisolated func testOpenVPNEndpointReachability(_ config: OpenVPNConfig) async -> (Bool, Int) {
-        let host = config.remoteHost
-        let port = config.remotePort
-        let start = Date()
-
-        let dnsOk = await resolveHost(host)
-        if !dnsOk {
-            let dohOk = await resolveHostViaDoH(host)
-            if !dohOk {
-                Task { @MainActor in
-                    self.logger.log("VPN reachability: DNS failed for \(host) (system + DoH)", category: .vpn, level: .warning)
-                    self.logger.logHealing(category: .vpn, originalError: "DNS resolution failed for \(host)", healingAction: "Tried DoH fallback — also failed", succeeded: false)
-                }
-                return (false, 0)
-            }
-            Task { @MainActor in
-                self.logger.logHealing(category: .vpn, originalError: "System DNS failed for \(host)", healingAction: "DoH fallback succeeded", succeeded: true)
-            }
-        }
-
-        if await testTCPConnection(host: host, port: port, timeoutSeconds: 8) {
-            return (true, Int(Date().timeIntervalSince(start) * 1000))
-        }
-
-        Task { @MainActor in
-            self.logger.log("VPN reachability: TCP failed for \(host):\(port)", category: .vpn, level: .error, metadata: [
-                "host": host, "port": "\(port)", "elapsed": "\(Int(Date().timeIntervalSince(start) * 1000))ms"
-            ])
-        }
-        return (false, 0)
-    }
-
-    func clearAllVPNConfigs(target: ProxyTarget) {
-        switch target {
-        case .joe: joeVPNConfigs.removeAll()
-        case .ignition: ignitionVPNConfigs.removeAll()
-        case .ppsr: ppsrVPNConfigs.removeAll()
-        }
-        persistVPNConfigs(for: target)
-    }
-
-    func removeUnreachableVPNConfigs(target: ProxyTarget) {
-        switch target {
-        case .joe: joeVPNConfigs.removeAll { !$0.isReachable && $0.lastTested != nil }
-        case .ignition: ignitionVPNConfigs.removeAll { !$0.isReachable && $0.lastTested != nil }
-        case .ppsr: ppsrVPNConfigs.removeAll { !$0.isReachable && $0.lastTested != nil }
-        }
-        persistVPNConfigs(for: target)
-    }
-
-    func removeUnreachableWGConfigs(target: ProxyTarget) {
-        switch target {
-        case .joe: joeWGConfigs.removeAll { !$0.isReachable && $0.lastTested != nil }
-        case .ignition: ignitionWGConfigs.removeAll { !$0.isReachable && $0.lastTested != nil }
-        case .ppsr: ppsrWGConfigs.removeAll { !$0.isReachable && $0.lastTested != nil }
-        }
-        persistWGConfigs(for: target)
-    }
-
-    private func persistVPNConfigs(for target: ProxyTarget) {
-        let key: String
-        let configs: [OpenVPNConfig]
-        switch target {
-        case .joe: key = joeVPNPersistKey; configs = joeVPNConfigs
-        case .ignition: key = ignitionVPNPersistKey; configs = ignitionVPNConfigs
-        case .ppsr: key = ppsrVPNPersistKey; configs = ppsrVPNConfigs
-        }
+    private func persistVPNConfigs() {
         do {
-            let data = try JSONEncoder().encode(configs)
-            UserDefaults.standard.set(data, forKey: key)
-            logger.log("ProxyRotation: persisted \(configs.count) VPN configs for \(target.rawValue)", category: .persistence, level: .debug)
+            let data = try JSONEncoder().encode(vpnConfigs)
+            UserDefaults.standard.set(data, forKey: vpnPersistKey)
+            logger.log("ProxyRotation: persisted \(vpnConfigs.count) VPN configs", category: .persistence, level: .debug)
         } catch {
-            logger.logError("ProxyRotation: failed to persist VPN configs for \(target.rawValue)", error: error, category: .persistence)
+            logger.logError("ProxyRotation: failed to persist VPN configs", error: error, category: .persistence)
         }
     }
 
     private func loadVPNConfigs() {
-        if let data = UserDefaults.standard.data(forKey: joeVPNPersistKey),
+        if let data = UserDefaults.standard.data(forKey: vpnPersistKey),
            let configs = try? JSONDecoder().decode([OpenVPNConfig].self, from: data) {
-            joeVPNConfigs = configs
-        }
-        if let data = UserDefaults.standard.data(forKey: ignitionVPNPersistKey),
-           let configs = try? JSONDecoder().decode([OpenVPNConfig].self, from: data) {
-            ignitionVPNConfigs = configs
-        }
-        if let data = UserDefaults.standard.data(forKey: ppsrVPNPersistKey),
-           let configs = try? JSONDecoder().decode([OpenVPNConfig].self, from: data) {
-            ppsrVPNConfigs = configs
+            vpnConfigs = configs
         }
     }
 
-    func wgConfigs(for target: ProxyTarget) -> [WireGuardConfig] {
-        switch target {
-        case .joe: joeWGConfigs
-        case .ignition: ignitionWGConfigs
-        case .ppsr: ppsrWGConfigs
+    private func persistWGConfigs() {
+        do {
+            let data = try JSONEncoder().encode(wgConfigs)
+            UserDefaults.standard.set(data, forKey: wgPersistKey)
+            logger.log("ProxyRotation: persisted \(wgConfigs.count) WG configs", category: .persistence, level: .debug)
+        } catch {
+            logger.logError("ProxyRotation: failed to persist WG configs", error: error, category: .persistence)
         }
     }
 
-    func importWGConfig(_ config: WireGuardConfig, for target: ProxyTarget) {
-        let existing = wgConfigs(for: target)
-        guard !existing.contains(where: { $0.uniqueKey == config.uniqueKey }) else { return }
-        switch target {
-        case .joe: joeWGConfigs.append(config)
-        case .ignition: ignitionWGConfigs.append(config)
-        case .ppsr: ppsrWGConfigs.append(config)
-        }
-        persistWGConfigs(for: target)
-    }
-
-    func bulkImportWGConfigs(_ configs: [WireGuardConfig], for target: ProxyTarget) -> ImportReport {
-        var added = 0
-        var duplicates = 0
-        let failed: [String] = []
-        var seenKeys = Set(wgConfigs(for: target).map(\.uniqueKey))
-        for config in configs {
-            if seenKeys.contains(config.uniqueKey) {
-                duplicates += 1
-            } else {
-                seenKeys.insert(config.uniqueKey)
-                switch target {
-                case .joe: joeWGConfigs.append(config)
-                case .ignition: ignitionWGConfigs.append(config)
-                case .ppsr: ppsrWGConfigs.append(config)
-                }
-                added += 1
-            }
-        }
-        if added > 0 { persistWGConfigs(for: target) }
-        let report = ImportReport(added: added, duplicates: duplicates, failed: failed)
-        lastImportReport = report
-        return report
-    }
-
-    func removeWGConfig(_ config: WireGuardConfig, target: ProxyTarget) {
-        switch target {
-        case .joe: joeWGConfigs.removeAll { $0.id == config.id || $0.uniqueKey == config.uniqueKey }
-        case .ignition: ignitionWGConfigs.removeAll { $0.id == config.id || $0.uniqueKey == config.uniqueKey }
-        case .ppsr: ppsrWGConfigs.removeAll { $0.id == config.id || $0.uniqueKey == config.uniqueKey }
-        }
-        persistWGConfigs(for: target)
-    }
-
-    func toggleWGConfig(_ config: WireGuardConfig, target: ProxyTarget, enabled: Bool) {
-        switch target {
-        case .joe:
-            if let idx = joeWGConfigs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) { joeWGConfigs[idx].isEnabled = enabled }
-        case .ignition:
-            if let idx = ignitionWGConfigs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) { ignitionWGConfigs[idx].isEnabled = enabled }
-        case .ppsr:
-            if let idx = ppsrWGConfigs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) { ppsrWGConfigs[idx].isEnabled = enabled }
-        }
-        persistWGConfigs(for: target)
-    }
-
-    func clearAllWGConfigs(target: ProxyTarget) {
-        switch target {
-        case .joe: joeWGConfigs.removeAll()
-        case .ignition: ignitionWGConfigs.removeAll()
-        case .ppsr: ppsrWGConfigs.removeAll()
-        }
-        persistWGConfigs(for: target)
-    }
-
-    func markWGConfigReachable(_ config: WireGuardConfig, target: ProxyTarget, reachable: Bool) {
-        switch target {
-        case .joe:
-            if let idx = joeWGConfigs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) {
-                joeWGConfigs[idx].isReachable = reachable
-                joeWGConfigs[idx].lastTested = Date()
-                if !reachable { joeWGConfigs[idx].isEnabled = false }
-            }
-        case .ignition:
-            if let idx = ignitionWGConfigs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) {
-                ignitionWGConfigs[idx].isReachable = reachable
-                ignitionWGConfigs[idx].lastTested = Date()
-                if !reachable { ignitionWGConfigs[idx].isEnabled = false }
-            }
-        case .ppsr:
-            if let idx = ppsrWGConfigs.firstIndex(where: { $0.id == config.id || $0.uniqueKey == config.uniqueKey }) {
-                ppsrWGConfigs[idx].isReachable = reachable
-                ppsrWGConfigs[idx].lastTested = Date()
-                if !reachable { ppsrWGConfigs[idx].isEnabled = false }
-            }
-        }
-        persistWGConfigs(for: target)
-    }
-
-    func testAllWGConfigs(target: ProxyTarget) async {
-        let configs = wgConfigs(for: target)
-        guard !configs.isEmpty else { return }
-        let maxConcurrent = 8
-        await withTaskGroup(of: (String, Bool).self) { group in
-            var launched = 0
-            for config in configs {
-                if launched >= maxConcurrent {
-                    if let result = await group.next() {
-                        applyWGTestResult(result, target: target)
-                    }
-                }
-                group.addTask {
-                    let reachable = await self.testWGEndpointReachability(config)
-                    return (config.uniqueKey, reachable)
-                }
-                launched += 1
-            }
-            for await result in group {
-                applyWGTestResult(result, target: target)
-            }
-        }
-        persistWGConfigs(for: target)
-    }
-
-    private func applyWGTestResult(_ result: (String, Bool), target: ProxyTarget) {
-        let (uniqueKey, reachable) = result
-        func update(_ configs: inout [WireGuardConfig]) {
-            if let idx = configs.firstIndex(where: { $0.uniqueKey == uniqueKey }) {
-                configs[idx].isReachable = reachable
-                configs[idx].lastTested = Date()
-                if !reachable { configs[idx].isEnabled = false }
-            }
-        }
-        switch target {
-        case .joe: update(&joeWGConfigs)
-        case .ignition: update(&ignitionWGConfigs)
-        case .ppsr: update(&ppsrWGConfigs)
+    private func loadWGConfigs() {
+        if let data = UserDefaults.standard.data(forKey: wgPersistKey),
+           let configs = try? JSONDecoder().decode([WireGuardConfig].self, from: data) {
+            wgConfigs = configs
         }
     }
 
-    nonisolated func testWGEndpointReachability(_ config: WireGuardConfig) async -> Bool {
-        let host = config.endpointHost
-
-        var dnsReachable = await resolveHost(host)
-        if !dnsReachable {
-            dnsReachable = await resolveHostViaDoH(host)
-            if !dnsReachable {
-                Task { @MainActor in
-                    self.logger.log("WG reachability: DNS failed for \(host) (system + DoH)", category: .vpn, level: .warning)
-                }
-                return false
-            }
-            Task { @MainActor in
-                self.logger.logHealing(category: .vpn, originalError: "System DNS failed for \(host)", healingAction: "DoH fallback succeeded", succeeded: true)
-            }
-        }
-
-        return true
-    }
-
-    nonisolated func testWGEndpointWithLatency(_ config: WireGuardConfig) async -> (Bool, Int) {
-        let start = Date()
-        let reachable = await testWGEndpointReachability(config)
-        let latency = Int(Date().timeIntervalSince(start) * 1000)
-        return (reachable, latency)
-    }
+    // MARK: - Network Utilities
 
     private nonisolated func resolveHost(_ host: String) async -> Bool {
         await withCheckedContinuation { continuation in
@@ -1509,74 +975,6 @@ class ProxyRotationService {
                     continuation.resume(returning: false)
                 }
             }
-        }
-    }
-
-    private func persistWGConfigs(for target: ProxyTarget) {
-        let key: String
-        let configs: [WireGuardConfig]
-        switch target {
-        case .joe: key = joeWGPersistKey; configs = joeWGConfigs
-        case .ignition: key = ignitionWGPersistKey; configs = ignitionWGConfigs
-        case .ppsr: key = ppsrWGPersistKey; configs = ppsrWGConfigs
-        }
-        do {
-            let data = try JSONEncoder().encode(configs)
-            UserDefaults.standard.set(data, forKey: key)
-            logger.log("ProxyRotation: persisted \(configs.count) WG configs for \(target.rawValue)", category: .persistence, level: .debug)
-        } catch {
-            logger.logError("ProxyRotation: failed to persist WG configs for \(target.rawValue)", error: error, category: .persistence)
-        }
-    }
-
-    private func loadWGConfigs() {
-        if let data = UserDefaults.standard.data(forKey: joeWGPersistKey),
-           let configs = try? JSONDecoder().decode([WireGuardConfig].self, from: data) {
-            joeWGConfigs = configs
-        }
-        if let data = UserDefaults.standard.data(forKey: ignitionWGPersistKey),
-           let configs = try? JSONDecoder().decode([WireGuardConfig].self, from: data) {
-            ignitionWGConfigs = configs
-        }
-        if let data = UserDefaults.standard.data(forKey: ppsrWGPersistKey),
-           let configs = try? JSONDecoder().decode([WireGuardConfig].self, from: data) {
-            ppsrWGConfigs = configs
-        }
-    }
-
-    private func loadProxies() {
-        let loaded = loadProxyList(key: persistKey)
-        if !loaded.isEmpty {
-            savedProxies = loaded
-        } else {
-            migrateFromV1()
-        }
-    }
-
-    private func migrateFromV1() {
-        let v1Key = "saved_socks5_proxies_v1"
-        guard let data = UserDefaults.standard.data(forKey: v1Key),
-              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
-
-        savedProxies = array.compactMap { dict -> ProxyConfig? in
-            guard let host = dict["host"] as? String,
-                  let port = dict["port"] as? Int else { return nil }
-            var proxy = ProxyConfig(
-                host: host,
-                port: port,
-                username: dict["username"] as? String,
-                password: dict["password"] as? String
-            )
-            proxy.isWorking = dict["isWorking"] as? Bool ?? false
-            if let ts = dict["lastTested"] as? TimeInterval {
-                proxy.lastTested = Date(timeIntervalSince1970: ts)
-            }
-            return proxy
-        }
-
-        if !savedProxies.isEmpty {
-            persistProxies()
-            UserDefaults.standard.removeObject(forKey: v1Key)
         }
     }
 }

@@ -360,7 +360,7 @@ class NordVPNService {
         }
     }
 
-    func downloadAllTCPConfigs(for servers: [NordVPNServer], target: ProxyRotationService.ProxyTarget) async -> (imported: Int, failed: Int) {
+    func downloadAllTCPConfigs(for servers: [NordVPNServer]) async -> (imported: Int, failed: Int) {
         isDownloadingOVPN = true
         ovpnDownloadProgress = "0/\(servers.count)"
         defer {
@@ -375,7 +375,7 @@ class NordVPNService {
         for (index, server) in servers.enumerated() {
             ovpnDownloadProgress = "\(index + 1)/\(servers.count)"
             if let config = await downloadOVPNConfig(from: server, proto: .tcp) {
-                proxyService.importVPNConfig(config, for: target)
+                proxyService.importVPNConfig(config)
                 imported += 1
             } else {
                 failed += 1
@@ -385,12 +385,12 @@ class NordVPNService {
         return (imported, failed)
     }
 
-    func fetchAndDownloadTCPServers(country: String? = nil, limit: Int = 10, target: ProxyRotationService.ProxyTarget) async -> (imported: Int, failed: Int) {
+    func fetchAndDownloadTCPServers(country: String? = nil, limit: Int = 10) async -> (imported: Int, failed: Int) {
         await fetchRecommendedServers(country: country, limit: limit, technology: "openvpn_tcp")
         guard !recommendedServers.isEmpty else {
             return (0, 0)
         }
-        return await downloadAllTCPConfigs(for: recommendedServers, target: target)
+        return await downloadAllTCPConfigs(for: recommendedServers)
     }
 
     func generateWireGuardConfig(from server: NordVPNServer) -> WireGuardConfig? {

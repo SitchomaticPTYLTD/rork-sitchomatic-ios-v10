@@ -129,7 +129,7 @@ struct IPScoreTestView: View {
 
                 Spacer()
 
-                let mode = proxyService.connectionMode(for: .ppsr)
+                let mode = proxyService.connectionMode
                 HStack(spacing: 4) {
                     Image(systemName: mode.icon)
                         .font(.system(size: 10, weight: .bold))
@@ -233,10 +233,10 @@ struct IPScoreTestView: View {
                 .multilineTextAlignment(.center)
 
             VStack(alignment: .leading, spacing: 8) {
-                networkInfoRow(icon: proxyService.connectionMode(for: .ppsr).icon, label: "Mode", value: proxyService.connectionMode(for: .ppsr).label)
+                networkInfoRow(icon: proxyService.connectionMode.icon, label: "Mode", value: proxyService.connectionMode.label)
                 networkInfoRow(icon: "server.rack", label: "Nord Servers", value: "\(nordService.recommendedServers.count) loaded")
                 networkInfoRow(icon: "network", label: "Proxies", value: "\(proxyService.savedProxies.count) configured")
-                networkInfoRow(icon: "lock.shield.fill", label: "WireGuard", value: "\(proxyService.ppsrWGConfigs.count) configs")
+                networkInfoRow(icon: "lock.shield.fill", label: "WireGuard", value: "\(proxyService.wgConfigs.count) configs")
             }
             .padding()
             .background(Color(.secondarySystemGroupedBackground))
@@ -288,7 +288,7 @@ struct IPScoreTestView: View {
         NavigationStack {
             List {
                 Section("Connection Mode") {
-                    LabeledContent("PPSR") { Text(proxyService.networkSummary(for: .ppsr)) }
+                    LabeledContent("PPSR") { Text(proxyService.networkSummary()) }
                     
                 }
 
@@ -304,8 +304,8 @@ struct IPScoreTestView: View {
                 }
 
                 Section("VPN Configs") {
-                    LabeledContent("OpenVPN") { Text("\(proxyService.ppsrVPNConfigs.count)") }
-                    LabeledContent("WireGuard") { Text("\(proxyService.ppsrWGConfigs.count)") }
+                    LabeledContent("OpenVPN") { Text("\(proxyService.vpnConfigs.count)") }
+                    LabeledContent("WireGuard") { Text("\(proxyService.wgConfigs.count)") }
                 }
 
                 if !sessions.isEmpty {
@@ -355,7 +355,7 @@ struct IPScoreTestView: View {
         isRunning = true
         timerTick = 0
 
-        let connectionMode = proxyService.connectionMode(for: .ppsr)
+        let connectionMode = proxyService.connectionMode
 
         for i in 0..<sessionCount {
             let session = IPScoreSession(index: i + 1)
@@ -384,7 +384,7 @@ struct IPScoreTestView: View {
     private func assignNetworkToSession(_ session: IPScoreSession, index: Int, mode: ConnectionMode) {
         switch mode {
         case .proxy:
-            if let proxy = proxyService.nextWorkingProxy(for: .ppsr) {
+            if let proxy = proxyService.nextWorkingProxy() {
                 session.assignedProxy = proxy.displayString
                 session.networkLabel = "SOCKS5 \(proxy.host):\(proxy.port)"
             } else if !proxyService.savedProxies.isEmpty {
@@ -396,7 +396,7 @@ struct IPScoreTestView: View {
             }
 
         case .wireguard:
-            if let wg = proxyService.nextEnabledWGConfig(for: .ppsr) {
+            if let wg = proxyService.nextEnabledWGConfig() {
                 session.assignedVPNServer = wg.fileName
                 session.assignedVPNIP = wg.peerEndpoint
                 session.networkLabel = "WG \(wg.fileName)"
@@ -408,7 +408,7 @@ struct IPScoreTestView: View {
             }
 
         case .openvpn:
-            if let ovpn = proxyService.nextEnabledOVPNConfig(for: .ppsr) {
+            if let ovpn = proxyService.nextEnabledOVPNConfig() {
                 session.assignedVPNServer = ovpn.fileName
                 session.assignedVPNIP = ovpn.remoteHost
                 session.networkLabel = "OVPN \(ovpn.fileName)"

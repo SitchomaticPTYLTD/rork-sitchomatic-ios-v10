@@ -13,7 +13,7 @@ class DefaultSettingsService {
         guard !hasAppliedDefaults else { return }
 
         let proxyService = ProxyRotationService.shared
-        proxyService.setConnectionMode(.dns, for: .ppsr)
+        proxyService.connectionMode = .dns
 
         UserDefaults.standard.set(true, forKey: appliedKey)
     }

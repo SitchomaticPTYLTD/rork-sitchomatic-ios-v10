@@ -124,13 +124,13 @@ class AppDataExportService {
         var config = ComprehensiveExportConfig()
         config.exportedAt = DateFormatters.exportTimestamp.string(from: Date())
 
-        config.ppsrProxies = proxyService.ppsrProxies.map { .init(host: $0.host, port: $0.port, username: $0.username, password: $0.password) }
-        config.ppsrVPNConfigs = proxyService.ppsrVPNConfigs.map { .init(fileName: $0.fileName, remoteHost: $0.remoteHost, remotePort: $0.remotePort, proto: $0.proto, rawContent: $0.rawContent, enabled: $0.isEnabled) }
-        config.ppsrWGConfigs = proxyService.ppsrWGConfigs.map { .init(fileName: $0.fileName, rawContent: $0.rawContent, enabled: $0.isEnabled) }
+        config.ppsrProxies = proxyService.savedProxies.map { .init(host: $0.host, port: $0.port, username: $0.username, password: $0.password) }
+        config.ppsrVPNConfigs = proxyService.vpnConfigs.map { .init(fileName: $0.fileName, remoteHost: $0.remoteHost, remotePort: $0.remotePort, proto: $0.proto, rawContent: $0.rawContent, enabled: $0.isEnabled) }
+        config.ppsrWGConfigs = proxyService.wgConfigs.map { .init(fileName: $0.fileName, rawContent: $0.rawContent, enabled: $0.isEnabled) }
 
         config.dnsServers = dnsService.managedProviders.map { .init(name: $0.name, url: $0.url, enabled: $0.isEnabled) }
 
-        config.connectionModes = .init(ppsr: proxyService.ppsrConnectionMode.rawValue)
+        config.connectionModes = .init(ppsr: proxyService.connectionMode.rawValue)
         config.networkRegion = proxyService.networkRegion.rawValue
         config.unifiedConnectionMode = proxyService.unifiedConnectionMode.rawValue
 
@@ -241,22 +241,22 @@ class AppDataExportService {
 
         for ep in config.ppsrProxies {
             let line = formatProxyLine(ep)
-            let report = proxyService.bulkImportSOCKS5(line, for: .ppsr)
+            let report = proxyService.bulkImportSOCKS5(line)
             result.proxiesImported += report.added
         }
 
         for ev in config.ppsrVPNConfigs {
             if let vpn = OpenVPNConfig.parse(fileName: ev.fileName, content: ev.rawContent) {
-                proxyService.importVPNConfig(vpn, for: .ppsr)
-                if !ev.enabled { proxyService.toggleVPNConfig(vpn, target: .ppsr, enabled: false) }
+                proxyService.importVPNConfig(vpn)
+                if !ev.enabled { proxyService.toggleVPNConfig(vpn, enabled: false) }
                 result.vpnImported += 1
             }
         }
 
         for ew in config.ppsrWGConfigs {
             if let wg = WireGuardConfig.parse(fileName: ew.fileName, content: ew.rawContent) {
-                proxyService.importWGConfig(wg, for: .ppsr)
-                if !ew.enabled { proxyService.toggleWGConfig(wg, target: .ppsr, enabled: false) }
+                proxyService.importWGConfig(wg)
+                if !ew.enabled { proxyService.toggleWGConfig(wg, enabled: false) }
                 result.wgImported += 1
             }
         }
@@ -273,7 +273,7 @@ class AppDataExportService {
         }
 
         if let ppsrMode = ConnectionMode(rawValue: config.connectionModes.ppsr) {
-            proxyService.setConnectionMode(ppsrMode, for: .ppsr)
+            proxyService.connectionMode = ppsrMode
         }
 
         if let region = NetworkRegion(rawValue: config.networkRegion) {

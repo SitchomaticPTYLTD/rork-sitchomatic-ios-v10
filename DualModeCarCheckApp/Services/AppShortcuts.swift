@@ -31,18 +31,6 @@ nonisolated struct OpenPPSRModeIntent: AppIntent {
     }
 }
 
-nonisolated struct OpenNordConfigIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open NordLynx Config"
-    static var description: IntentDescription = "Open the NordLynx VPN config generator"
-    static var openAppWhenRun: Bool = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        UserDefaults.standard.set("nordConfig", forKey: "activeAppMode")
-        return .result()
-    }
-}
-
 nonisolated struct PPSRAppShortcuts: AppShortcutsProvider {
     @AppShortcutsBuilder
     static var appShortcuts: [AppShortcut] {
@@ -63,14 +51,6 @@ nonisolated struct PPSRAppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Open PPSR",
             systemImageName: "bolt.shield.fill"
-        )
-        AppShortcut(
-            intent: OpenNordConfigIntent(),
-            phrases: [
-                "Open NordLynx in \(.applicationName)"
-            ],
-            shortTitle: "NordLynx Config",
-            systemImageName: "network"
         )
     }
 }

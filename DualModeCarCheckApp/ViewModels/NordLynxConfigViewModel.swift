@@ -175,16 +175,12 @@ final class NordLynxConfigViewModel {
         for config in filteredConfigs {
             if config.vpnProtocol == .wireguardUDP {
                 if let wgConfig = WireGuardConfig.parse(fileName: config.hostname, content: config.fileContent) {
-                    for target: ProxyRotationService.ProxyTarget in [.joe, .ignition, .ppsr] {
-                        proxyService.importWGConfig(wgConfig, for: target)
-                    }
+                    proxyService.importWGConfig(wgConfig)
                     wgCount += 1
                 }
             } else {
                 if let ovpnConfig = OpenVPNConfig.parse(fileName: config.fileName, content: config.fileContent) {
-                    for target: ProxyRotationService.ProxyTarget in [.joe, .ignition, .ppsr] {
-                        proxyService.importVPNConfig(ovpnConfig, for: target)
-                    }
+                    proxyService.importVPNConfig(ovpnConfig)
                     ovpnCount += 1
                 }
             }

@@ -150,11 +150,11 @@ class PersistentFileStorageService {
         let dnsService = PPSRDoHService.shared
 
         var networkState = NetworkFileState()
-        networkState.ppsrProxyCount = proxyService.ppsrProxies.count
-        networkState.ppsrWGCount = proxyService.ppsrWGConfigs.count
-        networkState.ppsrVPNCount = proxyService.ppsrVPNConfigs.count
+        networkState.ppsrProxyCount = proxyService.savedProxies.count
+        networkState.ppsrWGCount = proxyService.wgConfigs.count
+        networkState.ppsrVPNCount = proxyService.vpnConfigs.count
         networkState.dnsCount = dnsService.managedProviders.count
-        networkState.ppsrConnectionMode = proxyService.ppsrConnectionMode.rawValue
+        networkState.ppsrConnectionMode = proxyService.connectionMode.rawValue
         networkState.networkRegion = proxyService.networkRegion.rawValue
         networkState.savedAt = Date().timeIntervalSince1970
 
