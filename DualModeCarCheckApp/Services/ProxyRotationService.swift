@@ -461,13 +461,24 @@ class ProxyRotationService {
         let session = URLSession(configuration: config)
         defer { session.invalidateAndCancel() }
 
+        let result = await testProxyEndpoints(session: session, proxy: proxy)
+        if !result.success {
+            let displayStr = proxy.displayString
+            let errMsg = result.error
+            Task { @MainActor in
+                self.logger.log("ProxyTest FAIL: \(displayStr) — \(errMsg)", category: .proxy, level: .debug)
+            }
+        }
+        return result.success
+    }
+
+    private nonisolated func testProxyEndpoints(session: URLSession, proxy: ProxyConfig) async -> (success: Bool, error: String) {
         let testURLs = [
             "https://api.ipify.org?format=json",
             "https://httpbin.org/ip",
             "https://ifconfig.me/ip"
         ]
-
-        var lastErrorDesc = ""
+        var lastError = "all endpoints failed"
         for urlString in testURLs {
             guard let url = URL(string: urlString) else { continue }
             do {
@@ -477,18 +488,14 @@ class ProxyRotationService {
                 request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
                 let (data, response) = try await session.data(for: request)
                 if let http = response as? HTTPURLResponse, http.statusCode == 200, !data.isEmpty {
-                    return true
+                    return (true, "")
                 }
             } catch {
-                lastErrorDesc = error.localizedDescription
+                lastError = error.localizedDescription
                 continue
             }
         }
-        let errorDesc = lastErrorDesc
-        Task { @MainActor in
-            self.logger.log("ProxyTest FAIL: \(proxy.displayString) — \(errorDesc)", category: .proxy, level: .debug)
-        }
-        return false
+        return (false, lastError)
     }
 
     func exportProxies() -> String {

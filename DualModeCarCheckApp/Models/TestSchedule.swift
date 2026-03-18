@@ -16,4 +16,8 @@ nonisolated struct TestSchedule: Identifiable, Codable, Sendable {
         self.scheduledDate = scheduledDate
         self.cardFilter = cardFilter
     }
+
+    var isActive: Bool {
+        scheduledDate > Date()
+    }
 }

@@ -72,7 +72,6 @@ nonisolated struct GreenBannerDetector: Sendable {
         }
 
         var bestStart = -1
-        var bestEnd = -1
         var bestLength = 0
         var currentStart = -1
 
@@ -85,7 +84,6 @@ nonisolated struct GreenBannerDetector: Sendable {
                     if length > bestLength {
                         bestLength = length
                         bestStart = currentStart
-                        bestEnd = y
                     }
                     currentStart = -1
                 }
@@ -96,7 +94,6 @@ nonisolated struct GreenBannerDetector: Sendable {
             if length > bestLength {
                 bestLength = length
                 bestStart = currentStart
-                bestEnd = height
             }
         }
 

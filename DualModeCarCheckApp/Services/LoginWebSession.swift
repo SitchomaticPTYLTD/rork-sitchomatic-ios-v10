@@ -269,6 +269,7 @@ private class NavigationDelegate: NSObject, WKNavigationDelegate {
     let completion: (Bool, String?, Int?) -> Void
     private var completed = false
     private var timeoutTask: Task<Void, Never>?
+    var lastStatusCode: Int?
 
     init(timeout: TimeInterval, completion: @escaping (Bool, String?, Int?) -> Void) {
         self.timeout = timeout
@@ -285,12 +286,12 @@ private class NavigationDelegate: NSObject, WKNavigationDelegate {
         guard !completed else { return }
         completed = true
         timeoutTask?.cancel()
-        completion(success, error, statusCode)
+        completion(success, error, statusCode ?? lastStatusCode)
     }
 
     nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor in
-            finish(success: true, error: nil, statusCode: 200)
+            finish(success: true, error: nil, statusCode: nil)
         }
     }
 
@@ -306,13 +307,13 @@ private class NavigationDelegate: NSObject, WKNavigationDelegate {
         }
     }
 
-    nonisolated func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse) async -> WKNavigationResponsePolicy {
-        await MainActor.run {
-            let statusCode = (navigationResponse.response as? HTTPURLResponse)?.statusCode
-            if let statusCode {
-                self.completion(false, nil, statusCode)
+    nonisolated func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        if let httpResponse = navigationResponse.response as? HTTPURLResponse {
+            let code = httpResponse.statusCode
+            Task { @MainActor in
+                self.lastStatusCode = code
             }
         }
-        return .allow
+        decisionHandler(.allow)
     }
 }
