@@ -4,8 +4,7 @@ import UIKit
 @main
 struct PPSRSoloApp: App {
     @AppStorage("activeAppMode") private var activeModeRaw: String = ""
-    @AppStorage("introVideoEnabled") private var introVideoEnabled: Bool = false
-    @State private var introFinished: Bool = false
+
     @State private var nordInitialized: Bool = false
 
     private var activeMode: ActiveAppMode? {
@@ -15,10 +14,7 @@ struct PPSRSoloApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if introVideoEnabled && !introFinished {
-                    IntroVideoView(isFinished: $introFinished)
-                        .transition(.opacity)
-                } else if let mode = activeMode {
+                if let mode = activeMode {
                     Group {
                         switch mode {
                         case .ppsr:

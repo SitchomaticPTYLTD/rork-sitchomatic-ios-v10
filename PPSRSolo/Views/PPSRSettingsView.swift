@@ -3,7 +3,6 @@ import UniformTypeIdentifiers
 
 struct PPSRSettingsView: View {
     @Bindable var vm: PPSRAutomationViewModel
-    @AppStorage("introVideoEnabled") private var introVideoEnabled: Bool = false
     @State private var showEmailImport: Bool = false
     @State private var emailCSVText: String = ""
     @State private var cropX: String = ""
@@ -35,7 +34,6 @@ struct PPSRSettingsView: View {
             iCloudSection
             configExportImportSection
             appearanceSection
-            introVideoSection
             aboutSection
         }
         .listStyle(.insetGrouped)
@@ -515,25 +513,6 @@ struct PPSRSettingsView: View {
         }
     }
 
-    private var introVideoSection: some View {
-        Section {
-            Toggle(isOn: $introVideoEnabled) {
-                HStack(spacing: 10) {
-                    Image(systemName: "film.fill").foregroundStyle(.pink)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Intro Video").font(.body)
-                        Text("Play intro video on app launch").font(.caption2).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .tint(.pink)
-            .sensoryFeedback(.impact(weight: .light), trigger: introVideoEnabled)
-        } header: {
-            Text("Startup")
-        } footer: {
-            Text(introVideoEnabled ? "Intro video will play each time you open the app." : "Intro video is disabled. Enable to show it on launch.")
-        }
-    }
 
     private var configExportImportSection: some View {
         Section {
