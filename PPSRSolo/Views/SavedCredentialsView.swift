@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct SavedCredentialsView: View {
     let vm: PPSRAutomationViewModel
+    var iPadSelectedCardId: Binding<String?>? = nil
     @State private var showImportSheet: Bool = false
     @State private var importText: String = ""
     @State private var searchText: String = ""
@@ -18,6 +19,10 @@ struct SavedCredentialsView: View {
     @State private var selectedCSVMapping: PPSRCard.CSVColumnMapping = .auto
     @State private var isSelecting: Bool = false
     @State private var selectedCardIds: Set<String> = []
+    @State private var showTableView: Bool = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var isIPad: Bool { horizontalSizeClass == .regular }
 
     private var filteredCards: [PPSRCard] {
         var result = vm.cards.filter { $0.status != .dead }
@@ -54,7 +59,9 @@ struct SavedCredentialsView: View {
             sortFilterBar
             if showFilters { filterSection }
             if isSelecting { selectionBar }
-            if viewMode == .tile {
+            if isIPad && showTableView && viewMode == .list {
+                cardTableView
+            } else if viewMode == .tile {
                 cardsTileGrid
             } else {
                 cardsList
@@ -85,7 +92,11 @@ struct SavedCredentialsView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                ViewModeToggle(mode: $viewMode, accentColor: .teal)
+                if isIPad {
+                    iPadViewModePicker
+                } else {
+                    ViewModeToggle(mode: $viewMode, accentColor: .teal)
+                }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showImportSheet = true } label: { Image(systemName: "plus") }
@@ -97,7 +108,210 @@ struct SavedCredentialsView: View {
             }
         }
         .sheet(isPresented: $showImportSheet) { importSheet }
+        .onAppear {
+            if isIPad { showTableView = true }
+        }
     }
+
+    private var iPadViewModePicker: some View {
+        HStack(spacing: 0) {
+            Button {
+                withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
+                    viewMode = .list; showTableView = true
+                }
+            } label: {
+                Image(systemName: "tablecells")
+                    .font(.caption.bold())
+                    .frame(width: 32, height: 28)
+                    .background(viewMode == .list && showTableView ? Color.teal : Color.clear)
+                    .foregroundStyle(viewMode == .list && showTableView ? .white : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
+                    viewMode = .list; showTableView = false
+                }
+            } label: {
+                Image(systemName: "list.bullet")
+                    .font(.caption.bold())
+                    .frame(width: 32, height: 28)
+                    .background(viewMode == .list && !showTableView ? Color.teal : Color.clear)
+                    .foregroundStyle(viewMode == .list && !showTableView ? .white : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
+                    viewMode = .tile; showTableView = false
+                }
+            } label: {
+                Image(systemName: "square.grid.2x2")
+                    .font(.caption.bold())
+                    .frame(width: 32, height: 28)
+                    .background(viewMode == .tile ? Color.teal : Color.clear)
+                    .foregroundStyle(viewMode == .tile ? .white : .secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .background(Color(.tertiarySystemFill))
+        .clipShape(.rect(cornerRadius: 7))
+        .sensoryFeedback(.selection, trigger: viewMode)
+    }
+
+    // MARK: - iPad Table View
+
+    private var cardTableView: some View {
+        Group {
+            if filteredCards.isEmpty {
+                emptyContent
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        tableHeader
+                        ForEach(Array(filteredCards.enumerated()), id: \.element.id) { index, card in
+                            tableRow(card: card, isEven: index.isMultiple(of: 2))
+                        }
+                    }
+                    .padding(.bottom, 32)
+                }
+            }
+        }
+    }
+
+    private var tableHeader: some View {
+        HStack(spacing: 0) {
+            tableSortHeader("BIN", option: .bin, width: 80)
+            tableSortHeader("Brand", option: .brand, width: 80)
+            tableStaticHeader("Number", flex: true)
+            tableStaticHeader("Exp", width: 60)
+            tableStaticHeader("Status", width: 74)
+            tableSortHeader("Tests", option: .totalTests, width: 60)
+            tableStaticHeader("Country", width: 80)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.tertiarySystemGroupedBackground))
+    }
+
+    private func tableSortHeader(_ title: String, option: PPSRAutomationViewModel.CardSortOption, width: CGFloat) -> some View {
+        Button {
+            withAnimation(.snappy) {
+                if vm.cardSortOption == option { vm.cardSortAscending.toggle() }
+                else { vm.cardSortOption = option; vm.cardSortAscending = false }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(title)
+                    .font(.system(.caption2, design: .monospaced, weight: .bold))
+                    .foregroundStyle(.secondary)
+                if vm.cardSortOption == option {
+                    Image(systemName: vm.cardSortAscending ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.teal)
+                }
+            }
+            .frame(width: width, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tableStaticHeader(_ title: String, width: CGFloat? = nil, flex: Bool = false) -> some View {
+        Text(title)
+            .font(.system(.caption2, design: .monospaced, weight: .bold))
+            .foregroundStyle(.secondary)
+            .frame(width: flex ? nil : width, maxWidth: flex ? .infinity : nil, alignment: .leading)
+    }
+
+    private func tableRow(card: PPSRCard, isEven: Bool) -> some View {
+        Button {
+            if isSelecting {
+                withAnimation(.snappy) {
+                    if selectedCardIds.contains(card.id) { selectedCardIds.remove(card.id) }
+                    else { selectedCardIds.insert(card.id) }
+                }
+            } else if let binding = iPadSelectedCardId {
+                withAnimation(.snappy) { binding.wrappedValue = card.id }
+            }
+        } label: {
+            HStack(spacing: 0) {
+                Text(card.binPrefix)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 80, alignment: .leading)
+
+                HStack(spacing: 4) {
+                    Image(systemName: card.brand.iconName)
+                        .font(.caption2)
+                        .foregroundStyle(brandColor(card.brand))
+                    Text(card.brand.rawValue)
+                        .font(.system(.caption, weight: .medium))
+                }
+                .frame(width: 80, alignment: .leading)
+
+                Text(card.number)
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(card.formattedExpiry)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 60, alignment: .leading)
+
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(statusColor(card.status))
+                        .frame(width: 5, height: 5)
+                    Text(card.status.rawValue)
+                        .font(.system(.caption2, design: .monospaced, weight: .medium))
+                        .foregroundStyle(statusColor(card.status))
+                }
+                .frame(width: 74, alignment: .leading)
+
+                Text(card.totalTests > 0 ? "\(card.successCount)/\(card.totalTests)" : "-")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(card.totalTests > 0 ? (card.lastTestSuccess == true ? .green : .red) : .tertiary)
+                    .frame(width: 60, alignment: .leading)
+
+                Text(card.binData?.country ?? "")
+                    .font(.system(.caption2))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(width: 80, alignment: .leading)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                isSelecting && selectedCardIds.contains(card.id)
+                    ? Color.teal.opacity(0.1)
+                    : (iPadSelectedCardId?.wrappedValue == card.id ? Color.teal.opacity(0.08) : (isEven ? Color(.secondarySystemGroupedBackground) : Color(.systemGroupedBackground)))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button { vm.testSingleCard(card) } label: { Label("Test", systemImage: "play.fill") }
+            Button { vm.copyCardToClipboard(card) } label: { Label("Copy", systemImage: "doc.on.doc") }
+            Divider()
+            Button(role: .destructive) { vm.deleteCard(card) } label: { Label("Delete", systemImage: "trash") }
+        }
+    }
+
+    private func brandColor(_ brand: CardBrand) -> Color {
+        switch brand {
+        case .visa: .blue; case .mastercard: .orange; case .amex: .green; case .jcb: .red
+        case .discover: .purple; case .dinersClub: .indigo; case .unionPay: .teal; case .unknown: .secondary
+        }
+    }
+
+    private func statusColor(_ status: CardStatus) -> Color {
+        switch status {
+        case .working: .green; case .dead: .red; case .testing: .teal; case .untested: .secondary
+        }
+    }
+
+    // MARK: - Existing Views
 
     private var selectionBar: some View {
         VStack(spacing: 10) {
@@ -255,26 +469,31 @@ struct SavedCredentialsView: View {
         .background(Color(.secondarySystemGroupedBackground))
     }
 
+    @ViewBuilder
+    private var emptyContent: some View {
+        if vm.cards.isEmpty {
+            EmptyStateView(
+                icon: "creditcard.fill",
+                title: "No Cards",
+                subtitle: "Import cards to get started.",
+                accentColor: .teal,
+                actionTitle: "Import Cards",
+                action: { showImportSheet = true }
+            )
+        } else {
+            EmptyStateView(
+                icon: "magnifyingglass",
+                title: "No Matches",
+                subtitle: "No cards match your current filters.",
+                accentColor: .secondary
+            )
+        }
+    }
+
     private var cardsList: some View {
         Group {
             if filteredCards.isEmpty {
-                if vm.cards.isEmpty {
-                    EmptyStateView(
-                        icon: "creditcard.fill",
-                        title: "No Cards",
-                        subtitle: "Import cards to get started.",
-                        accentColor: .teal,
-                        actionTitle: "Import Cards",
-                        action: { showImportSheet = true }
-                    )
-                } else {
-                    EmptyStateView(
-                        icon: "magnifyingglass",
-                        title: "No Matches",
-                        subtitle: "No cards match your current filters.",
-                        accentColor: .secondary
-                    )
-                }
+                emptyContent
             } else {
                 List {
                     ForEach(filteredCards) { card in
@@ -314,29 +533,18 @@ struct SavedCredentialsView: View {
         }
     }
 
+    private var tileColumns: [GridItem] {
+        let count = isIPad ? 3 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+    }
+
     private var cardsTileGrid: some View {
         Group {
             if filteredCards.isEmpty {
-                if vm.cards.isEmpty {
-                    EmptyStateView(
-                        icon: "creditcard.fill",
-                        title: "No Cards",
-                        subtitle: "Import cards to get started.",
-                        accentColor: .teal,
-                        actionTitle: "Import Cards",
-                        action: { showImportSheet = true }
-                    )
-                } else {
-                    EmptyStateView(
-                        icon: "magnifyingglass",
-                        title: "No Matches",
-                        subtitle: "No cards match your current filters.",
-                        accentColor: .secondary
-                    )
-                }
+                emptyContent
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    LazyVGrid(columns: tileColumns, spacing: 10) {
                         ForEach(filteredCards) { card in
                             NavigationLink(value: card.id) {
                                 let screenshot = vm.screenshotsForCard(card.id).first?.image

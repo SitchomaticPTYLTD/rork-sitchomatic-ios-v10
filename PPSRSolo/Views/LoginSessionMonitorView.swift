@@ -76,9 +76,16 @@ struct LoginSessionMonitorView: View {
         .listStyle(.insetGrouped)
     }
 
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    private var tileColumns: [GridItem] {
+        let count = sizeClass == .regular ? 3 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+    }
+
     private var sessionTileGrid: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: tileColumns, spacing: 10) {
                 ForEach(filteredChecks) { check in
                     Button { selectedCheck = check } label: {
                         ScreenshotTileView(

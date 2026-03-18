@@ -160,9 +160,16 @@ struct WorkingLoginsView: View {
         .listStyle(.insetGrouped)
     }
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var tileColumns: [GridItem] {
+        let count = horizontalSizeClass == .regular ? 3 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
+    }
+
     private var workingTileGrid: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: tileColumns, spacing: 10) {
                 ForEach(filteredWorkingCards) { card in
                     let latestScreenshot = vm.screenshotsForCard(card.id).first?.image
                     Button { copyCard(card) } label: {
