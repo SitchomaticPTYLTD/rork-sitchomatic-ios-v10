@@ -73,23 +73,10 @@
 		};
 		BB0002002E9EAD3200EA8BC2 /* PPSRWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				BB0010002E9EAD3200EA8BD0 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
-			);
 			path = PPSRWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		BB0010002E9EAD3200EA8BD0 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = BB0006002E9EAD3200EA8BC6 /* PPSRWidgetExtension */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		105FC5772E9EAD3100EA8BCF /* Frameworks */ = {
@@ -662,7 +649,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = PPSRWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "PPSR Widget";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -691,7 +677,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = PPSRWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "PPSR Widget";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
