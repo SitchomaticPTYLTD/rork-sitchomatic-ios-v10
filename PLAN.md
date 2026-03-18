@@ -1,65 +1,53 @@
-# Full Screenshot System Overhaul
+# iPad Optimization: Layout, Memory Management & Efficiency
 
-## Overview
-Complete rewrite of the screenshot capture, storage, and viewing system to make it reliable, persistent, and user-friendly.
+## Features
 
----
+### iPad Layout & Split View Improvements
+- **Wider content columns** — The three-column split view will use a balanced layout that gives more space to the content and detail panels
+- **Quick-action toolbar** always visible at the top of the detail panel with Run, Pause, Stop, and card count badges — no need to navigate to Dashboard for controls
+- **Denser table view** on iPad — table rows become more compact, showing 50%+ more cards on screen at once
+- **4-column tile grid** on iPad (up from 3) to better use the wider screen
+- **Pointer hover effects** on table rows, card tiles, filter chips, and action buttons — feels native with trackpad/mouse
 
-### **Features**
+### Memory Tightening
+- **Screenshot cap reduced** from 500 to 200 in-memory, with automatic eviction of oldest screenshots beyond the limit
+- **Memory cache reduced** from 200 items to 80 in the screenshot cache service, with lower JPEG quality (0.45 instead of 0.6) for disk storage
+- **WebView pool max reduced** from 10 to 6, and a new `trimPool()` method auto-drains idle webviews after batch completes
+- **Log buffer capped** at 1000 entries (down from 2000), with the oldest entries dropped automatically
+- **Session history (checks) capped** at 500 — oldest completed checks are pruned automatically as new ones arrive
+- **Thumbnail cache eviction** — thumb cache limited to 100 entries with LRU eviction
 
-- **Reliable screenshot capture** — retries up to 3 times if capture fails, with a short rendering delay before each attempt to ensure the page is fully drawn
-- **Disk persistence** — screenshots are automatically saved to disk via the existing cache service, so they survive app restarts and memory pressure
-- **Smart blank detection** — lowered threshold so real pages aren't falsely flagged as blank; adds variance-based check alongside the existing uniformity check
-- **Correct crop calculations** — fixes the crop math so the focus area actually matches what you configure in settings
-- **Pinch-to-zoom screenshot viewer** — the full-screen screenshot view now supports pinch-to-zoom and drag to pan, so you can inspect fine details
-- **Screenshot count badge** — session tiles and rows show the actual number of screenshots captured per check
-- **Persistent screenshot gallery** — debug screenshots load from disk on app launch instead of being lost when the app restarts
-- **Memory-efficient display** — thumbnails in lists/grids use compressed versions; full-resolution only loaded when viewing detail
+### Higher Concurrency for iPad
+- **iPad gets up to 16 concurrent sessions** (picker shows 1–16 on iPad, stays 1–8 on iPhone)
+- The concurrency picker automatically detects iPad and offers the extended range
 
----
+### Automatic Cleanup
+- **Auto-purge expired cards** on every app launch (already partially done, now with a log message)
+- **Auto-trim old logs** — Debug log entries older than 7 days are automatically removed on launch
+- **Auto-trim stale screenshots** — Screenshots older than 3 days with no user override are purged on launch
+- **Auto-drain WebView pool** when a batch finishes — releases all idle webviews to free RAM
+- **Batch cleanup hook** — after every batch, old completed checks beyond 500 are trimmed
 
-### **Design**
+### iPad Multitasking
+- Enable `UISupportsMultipleScenes` so the app works properly in Split View and Slide Over on iPad
 
-- Full-screen viewer gets a dark background with pinch-zoom and double-tap-to-zoom gesture
-- Screenshot cards in the gallery show a subtle status indicator (green checkmark, red X, or gray question mark) overlaid on the thumbnail corner
-- Album cards show a stacked-photo effect with the count badge
-- The correction sheet keeps its existing layout but with smoother image transitions
+## Design
 
----
+- **Hover effects**: Subtle background highlight (teal at 8% opacity) on table rows, card tiles, and buttons when the pointer hovers — feels like a native iPadOS data browser
+- **Compact table mode**: Row height reduced, font sizes slightly smaller for the dense table, giving a spreadsheet-like feel on iPad
+- **Quick-action bar**: A horizontal bar pinned at the top of the detail column with pill-shaped status indicators (Running/Paused/Idle) and control buttons — uses the existing teal accent color with subtle backgrounds
+- **Memory indicator**: A small "RAM" badge in Settings → Debug section showing current screenshot count, cache size, and WebView pool status
 
-### **Changes by Area**
+## Screens Changed
 
-**Screenshot Capture (LoginWebSession)**
-- Add a 300ms render delay before capture
-- Retry capture up to 3 times on failure
-- Log capture failures with error details
-- Fix crop rect math to properly handle point-to-pixel conversion
-
-**Screenshot Cache Service**
-- Add ability to store/retrieve screenshots by check ID
-- Add batch save for debug screenshots
-- Add load-all method to restore screenshots on launch
-- Add thumbnail generation (smaller JPEG for list views)
-
-**Blank Screenshot Detector**
-- Lower uniformity threshold from 97% to 95%
-- Add pixel variance check as secondary signal
-- Increase sample size for more accurate detection
-
-**Automation Engine**
-- Use cache service to persist every captured screenshot to disk
-- Log screenshot dimensions and file size after capture
-
-**View Model**
-- Load persisted screenshots from disk on init
-- Cap in-memory screenshots at 500, but keep all on disk
-- Add method to load screenshot from disk on demand
-
-**Full Screenshot Viewer**
-- Replace basic ScrollView with pinch-to-zoom using MagnifyGesture
-- Add double-tap to toggle between fit and 1:1 zoom
-- Add share button to export screenshot
-
-**Screenshot Tile & Card Views**
-- Load thumbnail from cache instead of full image
-- Show screenshot count per check in session rows
+- **Content View** — iPad layout refinements: balanced column widths, quick-action bar in detail column
+- **Saved Credentials View** — Denser table, 4-column tile grid, pointer hover on rows
+- **Login Dashboard View** — iPad concurrency picker extended to 16
+- **Live Batch Panel View** — Quick controls always accessible
+- **Settings View** — Concurrency picker range based on device, memory stats in Debug section
+- **Working Logins View** — 4-column tile grid on iPad
+- **Login Session Monitor** — 4-column tile grid on iPad
+- **WebView Pool** — Reduced pool size, auto-drain on batch end
+- **Screenshot Cache Service** — Reduced memory limits, auto-cleanup of old screenshots
+- **Automation ViewModel** — Log cap reduced, auto-trim checks, screenshot eviction, cleanup hooks after batch
+- **PPSRSolo App** — Auto-cleanup tasks on launch (old logs, stale screenshots, expired cards)

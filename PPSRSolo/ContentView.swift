@@ -103,12 +103,101 @@ struct ContentView: View {
 
     @ViewBuilder
     private var iPadDetailColumn: some View {
-        if vm.isRunning {
-            LiveBatchPanelView(vm: vm, selectedCardId: $selectedCardId)
-        } else if let cardId = selectedCardId, let card = vm.cards.first(where: { $0.id == cardId }) {
-            PPSRCardDetailView(card: card, vm: vm)
-        } else {
-            iPadDetailPlaceholder
+        VStack(spacing: 0) {
+            iPadQuickActionBar
+            Divider()
+            if vm.isRunning {
+                LiveBatchPanelView(vm: vm, selectedCardId: $selectedCardId)
+            } else if let cardId = selectedCardId, let card = vm.cards.first(where: { $0.id == cardId }) {
+                PPSRCardDetailView(card: card, vm: vm)
+            } else {
+                iPadDetailPlaceholder
+            }
+        }
+    }
+
+    private var iPadQuickActionBar: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(vm.isRunning ? .green : .secondary.opacity(0.4))
+                    .frame(width: 7, height: 7)
+                Text(vm.isRunning ? (vm.isPaused ? "Paused" : "Running") : "Idle")
+                    .font(.system(.caption, design: .monospaced, weight: .bold))
+                    .foregroundStyle(vm.isRunning ? (vm.isPaused ? .orange : .green) : .secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background((vm.isRunning ? (vm.isPaused ? Color.orange : Color.green) : Color.secondary).opacity(0.1))
+            .clipShape(Capsule())
+
+            HStack(spacing: 12) {
+                iPadQuickStat(value: "\(vm.workingCards.count)", label: "Pass", color: .green)
+                iPadQuickStat(value: "\(vm.untestedCards.count)", label: "Queue", color: .secondary)
+                iPadQuickStat(value: "\(vm.deadCards.count)", label: "Dead", color: .red)
+            }
+
+            Spacer()
+
+            if vm.isRunning {
+                if vm.isPaused {
+                    Button { vm.resumeQueue() } label: {
+                        Image(systemName: "play.fill")
+                            .font(.caption.bold())
+                            .foregroundStyle(.green)
+                            .frame(width: 32, height: 28)
+                            .background(Color.green.opacity(0.12))
+                            .clipShape(.rect(cornerRadius: 6))
+                    }
+                } else {
+                    Button { vm.pauseQueue() } label: {
+                        Image(systemName: "pause.fill")
+                            .font(.caption.bold())
+                            .foregroundStyle(.orange)
+                            .frame(width: 32, height: 28)
+                            .background(Color.orange.opacity(0.12))
+                            .clipShape(.rect(cornerRadius: 6))
+                    }
+                    .disabled(vm.isStopping)
+                }
+                Button { vm.stopQueue() } label: {
+                    Image(systemName: "stop.fill")
+                        .font(.caption.bold())
+                        .foregroundStyle(.red)
+                        .frame(width: 32, height: 28)
+                        .background(Color.red.opacity(0.12))
+                        .clipShape(.rect(cornerRadius: 6))
+                }
+                .disabled(vm.isStopping)
+            } else if !vm.untestedCards.isEmpty {
+                Button { vm.testAllUntested() } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.fill").font(.caption2)
+                        Text("Run").font(.caption.bold())
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.teal)
+                    .clipShape(.rect(cornerRadius: 6))
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemGroupedBackground))
+    }
+
+    private func iPadQuickStat(value: String, label: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Text(value)
+                .font(.system(.caption, design: .monospaced, weight: .bold))
+                .foregroundStyle(color)
+                .contentTransition(.numericText())
+                .animation(.snappy, value: value)
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.tertiary)
         }
     }
 

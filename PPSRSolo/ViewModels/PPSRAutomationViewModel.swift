@@ -136,8 +136,8 @@ class PPSRAutomationViewModel {
         engine.onScreenshot = { [weak self] screenshot in
             guard let self else { return }
             self.debugScreenshots.insert(screenshot, at: 0)
-            if self.debugScreenshots.count > 500 {
-                self.debugScreenshots = Array(self.debugScreenshots.prefix(500))
+            if self.debugScreenshots.count > 200 {
+                self.debugScreenshots = Array(self.debugScreenshots.prefix(200))
             }
             self.persistScreenshotMetadata()
         }
@@ -1040,6 +1040,25 @@ class PPSRAutomationViewModel {
         showBatchResultPopup = true
         notifications.sendBatchComplete(working: working, dead: dead, requeued: requeued)
         persistCards()
+        postBatchCleanup()
+    }
+
+    private func postBatchCleanup() {
+        WebViewPool.shared.trimPool(keepCount: 2)
+
+        let maxChecks = 500
+        if checks.count > maxChecks {
+            let terminalToRemove = checks.suffix(from: maxChecks).filter { $0.status.isTerminal }
+            let idsToRemove = Set(terminalToRemove.map(\.id))
+            checks.removeAll { idsToRemove.contains($0.id) }
+            if !idsToRemove.isEmpty {
+                log("Trimmed \(idsToRemove.count) old session(s) from history", level: .info)
+            }
+        }
+
+        if debugScreenshots.count > 200 {
+            debugScreenshots = Array(debugScreenshots.prefix(200))
+        }
     }
 
     private func resetStuckTestingCards() {
@@ -1236,8 +1255,8 @@ class PPSRAutomationViewModel {
         let batch = pendingLogs
         pendingLogs.removeAll()
         globalLogs.insert(contentsOf: batch.reversed(), at: 0)
-        if globalLogs.count > 2000 {
-            globalLogs.removeLast(globalLogs.count - 2000)
+        if globalLogs.count > 1000 {
+            globalLogs.removeLast(globalLogs.count - 1000)
         }
     }
 

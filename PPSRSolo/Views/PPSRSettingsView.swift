@@ -16,6 +16,11 @@ struct PPSRSettingsView: View {
     @State private var scheduledDate: Date = Date().addingTimeInterval(3600)
     @State private var scheduleFilter: TestSchedule.CardFilter = .allUntested
     private let proxyService = ProxyRotationService.shared
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var maxConcurrencyLimit: Int {
+        horizontalSizeClass == .regular ? 16 : 8
+    }
 
     var body: some View {
         List {
@@ -379,6 +384,18 @@ struct PPSRSettingsView: View {
                 if !vm.debugScreenshots.isEmpty {
                     Button(role: .destructive) { vm.clearDebugScreenshots() } label: { Label("Clear All Screenshots", systemImage: "trash") }
                 }
+
+                HStack {
+                    Image(systemName: "memorychip").foregroundStyle(.secondary)
+                    Text("Memory")
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Img: \(ScreenshotCacheService.shared.memoryCacheCount)/80 · Thumb: \(ScreenshotCacheService.shared.thumbCacheCount)/100")
+                            .font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+                        Text("WV Pool: \(WebViewPool.shared.activeCount) active, \(WebViewPool.shared.availableCount) idle")
+                            .font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+                    }
+                }
             }
             NavigationLink {
                 DebugLogView()
@@ -497,13 +514,13 @@ struct PPSRSettingsView: View {
     private var concurrencySection: some View {
         Section {
             Picker("Max Sessions", selection: $vm.maxConcurrency) {
-                ForEach(1...8, id: \.self) { n in Text("\(n)").tag(n) }
+                ForEach(1...maxConcurrencyLimit, id: \.self) { n in Text("\(n)").tag(n) }
             }
             .pickerStyle(.menu)
         } header: {
             Text("Concurrency")
         } footer: {
-            Text("Up to 8 concurrent WKWebView sessions.")
+            Text(horizontalSizeClass == .regular ? "Up to 16 concurrent WKWebView sessions on iPad." : "Up to 8 concurrent WKWebView sessions.")
         }
     }
 

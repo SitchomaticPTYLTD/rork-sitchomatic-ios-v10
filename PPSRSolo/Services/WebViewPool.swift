@@ -7,7 +7,7 @@ class WebViewPool {
 
     private var available: [WKWebView] = []
     private var inUse: Set<ObjectIdentifier> = []
-    private let maxPoolSize: Int = 10
+    private let maxPoolSize: Int = 6
     private let logger = DebugLogger.shared
 
     var activeCount: Int { inUse.count }
@@ -80,5 +80,18 @@ class WebViewPool {
         }
         available.removeAll()
         logger.log("WebViewPool: drained all (\(inUse.count) still in use)", category: .webView, level: .info)
+    }
+
+    func trimPool(keepCount: Int = 2) {
+        guard available.count > keepCount else { return }
+        let excess = available.count - keepCount
+        let toRemove = available.prefix(excess)
+        for wv in toRemove {
+            wv.stopLoading()
+            wv.configuration.websiteDataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { }
+            wv.navigationDelegate = nil
+        }
+        available.removeFirst(excess)
+        logger.log("WebViewPool: trimmed \(excess) idle views (active:\(inUse.count) pool:\(available.count))", category: .webView, level: .info)
     }
 }

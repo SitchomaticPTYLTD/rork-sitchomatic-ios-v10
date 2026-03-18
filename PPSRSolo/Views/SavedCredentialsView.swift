@@ -190,7 +190,7 @@ struct SavedCredentialsView: View {
             tableStaticHeader("Country", width: 80)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .background(Color(.tertiarySystemGroupedBackground))
     }
 
@@ -289,7 +289,7 @@ struct SavedCredentialsView: View {
                     .frame(width: 80, alignment: .leading)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .background(
                 isSelecting && selectedCardIds.contains(card.id)
                     ? Color.teal.opacity(0.1)
@@ -298,6 +298,7 @@ struct SavedCredentialsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .contextMenu {
             Button { vm.testSingleCard(card) } label: { Label("Test", systemImage: "play.fill") }
             Button { vm.copyCardToClipboard(card) } label: { Label("Copy", systemImage: "doc.on.doc") }
@@ -542,7 +543,7 @@ struct SavedCredentialsView: View {
     }
 
     private var tileColumns: [GridItem] {
-        let count = isIPad ? 3 : 2
+        let count = isIPad ? 4 : 2
         return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
     }
 

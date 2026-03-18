@@ -163,7 +163,7 @@ struct WorkingLoginsView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var tileColumns: [GridItem] {
-        let count = horizontalSizeClass == .regular ? 3 : 2
+        let count = horizontalSizeClass == .regular ? 4 : 2
         return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
     }
 

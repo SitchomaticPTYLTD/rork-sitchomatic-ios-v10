@@ -16,6 +16,11 @@ struct LoginDashboardView: View {
     }
 
     @State private var showStatsPanel: Bool = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var maxConcurrencyLimit: Int {
+        horizontalSizeClass == .regular ? 16 : 8
+    }
 
     var body: some View {
         ScrollView {
@@ -684,7 +689,7 @@ struct LoginDashboardView: View {
                     .font(.subheadline.bold())
                 Spacer()
                 Picker("", selection: $vm.maxConcurrency) {
-                    ForEach(1...8, id: \.self) { n in
+                    ForEach(1...maxConcurrencyLimit, id: \.self) { n in
                         Text("\(n)").tag(n)
                     }
                 }

@@ -72,6 +72,7 @@ struct PPSRSoloApp: App {
                         nord.lastError = "NordVPN access token needs to be refreshed before fetching a private key."
                     }
                     vault.saveFullState()
+                    performAutoCleanup()
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
@@ -80,6 +81,25 @@ struct PPSRSoloApp: App {
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
                 PersistentFileStorageService.shared.forceSave()
             }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+                WebViewPool.shared.drainAll()
+                DebugLogger.shared.log("Memory warning — drained WebView pool", category: .system, level: .warning)
+            }
         }
+    }
+
+    private func performAutoCleanup() {
+        let logger = DebugLogger.shared
+
+        let sevenDaysAgo = Date().addingTimeInterval(-7 * 24 * 3600)
+        let beforeCount = logger.entryCount
+        logger.trimEntries(olderThan: sevenDaysAgo)
+        let trimmed = beforeCount - logger.entryCount
+        if trimmed > 0 {
+            logger.log("Auto-cleanup: removed \(trimmed) debug log entries older than 7 days", category: .system, level: .info)
+        }
+
+        let threeDaysAgo = Date().addingTimeInterval(-3 * 24 * 3600)
+        ScreenshotCacheService.shared.purgeStaleScreenshots(olderThan: threeDaysAgo, keepOverrides: [])
     }
 }

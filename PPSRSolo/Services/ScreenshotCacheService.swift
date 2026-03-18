@@ -9,11 +9,13 @@ class ScreenshotCacheService {
     private let thumbDirectory: URL
     private let metadataURL: URL
     private let checkMapURL: URL
-    private let maxMemoryCacheCount = 200
+    private let maxMemoryCacheCount = 80
+    private let maxThumbCacheCount = 100
     private var memoryCache: [String: UIImage] = [:]
     private var thumbCache: [String: UIImage] = [:]
     private var accessOrder: [String] = []
-    private let thumbSize: CGFloat = 200
+    private var thumbAccessOrder: [String] = []
+    private let thumbSize: CGFloat = 160
     private var checkScreenshotMap: [String: [String]] = [:]
 
     init() {
@@ -39,10 +41,10 @@ class ScreenshotCacheService {
         Task.detached(priority: .utility) {
             let fullURL = self.fullFileURL(for: key)
             let thumbURL = self.thumbFileURL(for: key)
-            if let data = image.jpegData(compressionQuality: 0.6) {
+            if let data = image.jpegData(compressionQuality: 0.45) {
                 try? data.write(to: fullURL, options: .atomic)
             }
-            if let thumbData = thumb.jpegData(compressionQuality: 0.5) {
+            if let thumbData = thumb.jpegData(compressionQuality: 0.4) {
                 try? thumbData.write(to: thumbURL, options: .atomic)
             }
         }
@@ -66,7 +68,10 @@ class ScreenshotCacheService {
     }
 
     func retrieveThumbnail(forKey key: String) -> UIImage? {
-        if let cached = thumbCache[key] { return cached }
+        if let cached = thumbCache[key] {
+            touchThumbAccess(key)
+            return cached
+        }
         let fileURL = thumbFileURL(for: key)
         guard FileManager.default.fileExists(atPath: fileURL.path()),
               let data = try? Data(contentsOf: fileURL),
@@ -79,6 +84,8 @@ class ScreenshotCacheService {
             return nil
         }
         thumbCache[key] = image
+        touchThumbAccess(key)
+        evictThumbCacheIfNeeded()
         return image
     }
 
@@ -199,7 +206,7 @@ class ScreenshotCacheService {
         guard let entries = try? decoder.decode([ScreenshotMetadataEntry].self, from: data) else { return [] }
 
         var results: [PPSRDebugScreenshot] = []
-        for entry in entries.prefix(500) {
+        for entry in entries.prefix(200) {
             guard let image = retrieveFull(forKey: "debug_\(entry.id)") else { continue }
             var crop: UIImage?
             if entry.hasCrop {
@@ -286,16 +293,62 @@ class ScreenshotCacheService {
         }
     }
 
+    var memoryCacheCount: Int { memoryCache.count }
+    var thumbCacheCount: Int { thumbCache.count }
+
+    func purgeStaleScreenshots(olderThan cutoff: Date, keepOverrides: Set<String>) {
+        guard FileManager.default.fileExists(atPath: metadataURL.path()),
+              let data = try? Data(contentsOf: metadataURL) else { return }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard var entries = try? decoder.decode([ScreenshotMetadataEntry].self, from: data) else { return }
+        let before = entries.count
+        entries.removeAll { entry in
+            entry.timestamp < cutoff && !keepOverrides.contains(entry.id)
+        }
+        if entries.count < before {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            if let updated = try? encoder.encode(entries) {
+                try? updated.write(to: metadataURL, options: .atomic)
+            }
+            let removed = before - entries.count
+            let remainingIds = Set(entries.map(\.id))
+            let fm = FileManager.default
+            if let files = try? fm.contentsOfDirectory(at: fullDirectory, includingPropertiesForKeys: nil) {
+                for file in files {
+                    let name = file.deletingPathExtension().lastPathComponent.replacingOccurrences(of: "debug_", with: "")
+                    if !remainingIds.contains(name) && !name.hasSuffix("_crop") {
+                        try? fm.removeItem(at: file)
+                        try? fm.removeItem(at: thumbFileURL(for: "debug_\(name)"))
+                    }
+                }
+            }
+            _ = removed
+        }
+    }
+
     private func touchAccess(_ key: String) {
         accessOrder.removeAll { $0 == key }
         accessOrder.append(key)
     }
 
+    private func touchThumbAccess(_ key: String) {
+        thumbAccessOrder.removeAll { $0 == key }
+        thumbAccessOrder.append(key)
+    }
+
     private func evictMemoryCacheIfNeeded() {
         while memoryCache.count > maxMemoryCacheCount, let oldest = accessOrder.first {
             memoryCache.removeValue(forKey: oldest)
-            thumbCache.removeValue(forKey: oldest)
             accessOrder.removeFirst()
+        }
+    }
+
+    private func evictThumbCacheIfNeeded() {
+        while thumbCache.count > maxThumbCacheCount, let oldest = thumbAccessOrder.first {
+            thumbCache.removeValue(forKey: oldest)
+            thumbAccessOrder.removeFirst()
         }
     }
 

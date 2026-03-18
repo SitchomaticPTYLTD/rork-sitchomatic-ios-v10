@@ -432,6 +432,18 @@ class DebugLogger {
         log(message, category: category, level: level, sessionId: sessionId, durationMs: durationMs)
     }
 
+    func trimEntries(olderThan cutoff: Date) {
+        let before = entries.count
+        entries.removeAll { $0.timestamp < cutoff }
+        let removed = before - entries.count
+        if removed > 0 {
+            cachedErrorCount = entries.filter { $0.level >= .error }.count
+            cachedWarningCount = entries.filter { $0.level == .warning }.count
+            cachedCriticalCount = entries.filter { $0.level >= .critical }.count
+            didChange.send()
+        }
+    }
+
     func clearAll() {
         entries.removeAll()
         sessionTimers.removeAll()

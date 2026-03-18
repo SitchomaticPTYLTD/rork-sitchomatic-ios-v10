@@ -79,7 +79,7 @@ struct LoginSessionMonitorView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var tileColumns: [GridItem] {
-        let count = sizeClass == .regular ? 3 : 2
+        let count = sizeClass == .regular ? 4 : 2
         return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
     }
 
