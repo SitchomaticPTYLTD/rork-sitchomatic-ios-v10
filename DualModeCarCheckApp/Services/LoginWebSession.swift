@@ -1,5 +1,5 @@
 import Foundation
-import WebKit
+@preconcurrency import WebKit
 import UIKit
 
 @MainActor
@@ -315,9 +315,11 @@ private class NavigationDelegate: NSObject, WKNavigationDelegate {
     }
 
     nonisolated func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-        MainActor.assumeIsolated {
-            if let httpResponse = navigationResponse.response as? HTTPURLResponse {
-                self.lastStatusCode = httpResponse.statusCode
+        let response = navigationResponse.response
+        if let httpResponse = response as? HTTPURLResponse {
+            let code = httpResponse.statusCode
+            Task { @MainActor in
+                self.lastStatusCode = code
             }
         }
         decisionHandler(.allow)

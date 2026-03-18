@@ -16,7 +16,8 @@
 
 ### 3. LoginWebSession — Concurrency Warning (FIXED)
 
-- [x] Rewrite `decidePolicyFor` delegate method to use `nonisolated` + `MainActor.assumeIsolated` to safely access `navigationResponse.response`.
+- [x] Rewrite `decidePolicyFor` delegate method to use `nonisolated` + `Task { @MainActor in }` to safely update `lastStatusCode`.
+- [x] Use `@preconcurrency import WebKit` to suppress strict concurrency warnings on WebKit types.
 - [x] Store HTTP status code in `lastStatusCode` without calling completion prematurely.
 
 ---
@@ -33,6 +34,12 @@
 
 ---
 
+### 6. IntroVideoView — layoutSubviews MainActor.assumeIsolated (FIXED)
+
+- [x] Remove unnecessary `nonisolated` + `MainActor.assumeIsolated` from `layoutSubviews()` — UIKit methods are `@MainActor` in iOS 18+ SDK.
+
+---
+
 ### Summary
 
-All 5 issues identified and resolved. Build should compile cleanly with no errors or warnings.
+All 6 issues identified and resolved. Build should compile cleanly with no errors or warnings.

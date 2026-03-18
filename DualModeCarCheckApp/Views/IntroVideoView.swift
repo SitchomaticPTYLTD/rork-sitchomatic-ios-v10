@@ -115,10 +115,8 @@ class PlayerUIView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    nonisolated override func layoutSubviews() {
-        MainActor.assumeIsolated {
-            super.layoutSubviews()
-            playerLayer.frame = bounds
-        }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        playerLayer.frame = bounds
     }
 }
