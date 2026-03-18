@@ -307,9 +307,9 @@ private class NavigationDelegate: NSObject, WKNavigationDelegate {
     }
 
     nonisolated func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse) async -> WKNavigationResponsePolicy {
-        let statusCode = (navigationResponse.response as? HTTPURLResponse)?.statusCode
-        if let statusCode {
-            await MainActor.run {
+        await MainActor.run {
+            let statusCode = (navigationResponse.response as? HTTPURLResponse)?.statusCode
+            if let statusCode {
                 self.completion(false, nil, statusCode)
             }
         }

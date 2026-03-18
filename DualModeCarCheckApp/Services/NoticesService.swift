@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 
 enum NoticeSource {
     case ppsr
