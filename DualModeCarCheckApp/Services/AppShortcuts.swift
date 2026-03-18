@@ -43,7 +43,7 @@ nonisolated struct OpenNordConfigIntent: AppIntent {
     }
 }
 
-nonisolated struct DualModeAppShortcuts: AppShortcutsProvider {
+nonisolated struct PPSRAppShortcuts: AppShortcutsProvider {
     @AppShortcutsBuilder
     static var appShortcuts: [AppShortcut] {
         AppShortcut(

@@ -41,6 +41,31 @@ class PPSRAutomationViewModel {
     var consecutiveUnusualFailures: Int = 0
     var lastBatchResult: BatchResult?
     var testTimeout: TimeInterval = 30
+
+    var batchTotalCards: Int = 0
+    var batchCompletedCards: Int = 0
+    var batchWorkingLive: Int = 0
+    var batchDeadLive: Int = 0
+    var batchRequeuedLive: Int = 0
+    var batchElapsedSeconds: Int = 0
+    private var batchElapsedTask: Task<Void, Never>?
+
+    var batchProgress: Double {
+        guard batchTotalCards > 0 else { return 0 }
+        return Double(batchCompletedCards) / Double(batchTotalCards)
+    }
+
+    var batchCardsPerMinute: Double {
+        guard batchElapsedSeconds > 10, batchCompletedCards > 0 else { return 0 }
+        return Double(batchCompletedCards) / (Double(batchElapsedSeconds) / 60.0)
+    }
+
+    var batchEstimatedSecondsRemaining: Int {
+        guard batchCompletedCards > 0, batchElapsedSeconds > 0 else { return 0 }
+        let avgPerCard = Double(batchElapsedSeconds) / Double(batchCompletedCards)
+        let remaining = batchTotalCards - batchCompletedCards
+        return Int(avgPerCard * Double(remaining))
+    }
     var cardSortOption: CardSortOption = .dateAdded
     var cardSortAscending: Bool = false
 
@@ -635,6 +660,13 @@ class PPSRAutomationViewModel {
         isStopping = false
         batchStartTime = Date()
         autoRetryBackoffCounts.removeAll()
+        batchTotalCards = cardsToTest.count
+        batchCompletedCards = 0
+        batchWorkingLive = 0
+        batchDeadLive = 0
+        batchRequeuedLive = 0
+        batchElapsedSeconds = 0
+        startBatchElapsedTimer()
         log("Starting batch test: \(cardsToTest.count) cards, max \(maxConcurrency) concurrent, stealth: \(stealthEnabled ? "ON" : "OFF")")
         logger.log("PPSR BATCH START: \(cardsToTest.count) cards, concurrency=\(maxConcurrency), stealth=\(stealthEnabled)", category: .ppsr, level: .info, metadata: ["count": "\(cardsToTest.count)"])
         isRunning = true
@@ -682,10 +714,17 @@ class PPSRAutomationViewModel {
                             self.handleOutcome(outcome, card: card, check: check, vin: vin)
 
                             switch outcome {
-                            case .pass: batchWorking += 1
-                            case .failInstitution: batchDead += 1
-                            case .uncertain, .timeout, .connectionFailure: batchRequeued += 1
+                            case .pass:
+                                batchWorking += 1
+                                self.batchWorkingLive += 1
+                            case .failInstitution:
+                                batchDead += 1
+                                self.batchDeadLive += 1
+                            case .uncertain, .timeout, .connectionFailure:
+                                batchRequeued += 1
+                                self.batchRequeuedLive += 1
                             }
+                            self.batchCompletedCards += 1
 
                             self.persistCards()
                         }
@@ -697,6 +736,22 @@ class PPSRAutomationViewModel {
 
             finalizePPSRBatch(working: batchWorking, dead: batchDead, requeued: batchRequeued)
         }
+    }
+
+    private func startBatchElapsedTimer() {
+        batchElapsedTask?.cancel()
+        batchElapsedTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { break }
+                batchElapsedSeconds += 1
+            }
+        }
+    }
+
+    private func stopBatchElapsedTimer() {
+        batchElapsedTask?.cancel()
+        batchElapsedTask = nil
     }
 
     func pauseQueue() {
@@ -755,6 +810,13 @@ class PPSRAutomationViewModel {
 
         isPaused = false
         isStopping = false
+        batchTotalCards = cardsToTest.count
+        batchCompletedCards = 0
+        batchWorkingLive = 0
+        batchDeadLive = 0
+        batchRequeuedLive = 0
+        batchElapsedSeconds = 0
+        startBatchElapsedTimer()
         log("Starting selected test: \(cardsToTest.count) cards, max \(maxConcurrency) concurrent")
         isRunning = true
         startHeartbeatMonitor()
@@ -797,10 +859,17 @@ class PPSRAutomationViewModel {
                             self.activeTestCount -= 1
                             self.handleOutcome(outcome, card: card, check: check, vin: vin)
                             switch outcome {
-                            case .pass: batchWorking += 1
-                            case .failInstitution: batchDead += 1
-                            case .uncertain, .timeout, .connectionFailure: batchRequeued += 1
+                            case .pass:
+                                batchWorking += 1
+                                self.batchWorkingLive += 1
+                            case .failInstitution:
+                                batchDead += 1
+                                self.batchDeadLive += 1
+                            case .uncertain, .timeout, .connectionFailure:
+                                batchRequeued += 1
+                                self.batchRequeuedLive += 1
                             }
+                            self.batchCompletedCards += 1
                             self.persistCards()
                         }
                     }
@@ -817,6 +886,7 @@ class PPSRAutomationViewModel {
         lastBatchResult = result
         cancelPauseCountdown()
         stopHeartbeatMonitor()
+        stopBatchElapsedTimer()
         persistence.clearTestQueue()
         isRunning = false
         isPaused = false

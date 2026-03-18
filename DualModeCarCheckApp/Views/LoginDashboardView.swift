@@ -28,7 +28,7 @@ struct LoginDashboardView: View {
                     connectionDiagnosticsCard
                 }
                 if vm.isRunning {
-                    testingBanner
+                    batchProgressCard
                     queueControls
                 }
                 if vm.stealthEnabled {
@@ -150,45 +150,160 @@ struct LoginDashboardView: View {
         .clipShape(.rect(cornerRadius: 10))
     }
 
-    private var testingBanner: some View {
-        HStack(spacing: 10) {
-            ProgressView()
-                .tint(.teal)
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Text("Testing in Progress")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.teal)
-                    if vm.isPaused {
-                        Text(vm.pauseCountdown > 0 ? "PAUSED \(vm.pauseCountdown)s" : "PAUSED")
-                            .font(.system(.caption2, design: .monospaced, weight: .heavy))
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.15))
-                            .clipShape(Capsule())
-                            .contentTransition(.numericText(value: Double(vm.pauseCountdown)))
-                            .animation(.snappy, value: vm.pauseCountdown)
-                    }
-                    if vm.isStopping {
-                        Text("STOPPING")
-                            .font(.system(.caption2, design: .monospaced, weight: .heavy))
-                            .foregroundStyle(.red)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.red.opacity(0.15))
-                            .clipShape(Capsule())
+    private var batchProgressCard: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.teal.opacity(0.15), lineWidth: 6)
+                        .frame(width: 64, height: 64)
+                    Circle()
+                        .trim(from: 0, to: vm.batchProgress)
+                        .stroke(Color.teal, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .frame(width: 64, height: 64)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.spring(duration: 0.5), value: vm.batchProgress)
+                    VStack(spacing: 0) {
+                        Text("\(Int(vm.batchProgress * 100))")
+                            .font(.system(.body, design: .monospaced, weight: .bold))
+                            .foregroundStyle(.teal)
+                            .contentTransition(.numericText(value: vm.batchProgress))
+                            .animation(.snappy, value: vm.batchCompletedCards)
+                        Text("%")
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.teal.opacity(0.6))
                     }
                 }
-                Text("\(vm.activeTestCount) active · \(vm.untestedCards.count) queued · \(vm.testingCards.count) testing")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text("Batch Testing")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.teal)
+                        if vm.isPaused {
+                            Text(vm.pauseCountdown > 0 ? "PAUSED \(vm.pauseCountdown)s" : "PAUSED")
+                                .font(.system(.caption2, design: .monospaced, weight: .heavy))
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.15))
+                                .clipShape(Capsule())
+                                .contentTransition(.numericText(value: Double(vm.pauseCountdown)))
+                                .animation(.snappy, value: vm.pauseCountdown)
+                        }
+                        if vm.isStopping {
+                            Text("STOPPING")
+                                .font(.system(.caption2, design: .monospaced, weight: .heavy))
+                                .foregroundStyle(.red)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.red.opacity(0.15))
+                                .clipShape(Capsule())
+                        }
+                    }
+
+                    HStack(spacing: 4) {
+                        Text("\(vm.batchCompletedCards)")
+                            .font(.system(.subheadline, design: .monospaced, weight: .bold))
+                            .contentTransition(.numericText(value: Double(vm.batchCompletedCards)))
+                            .animation(.snappy, value: vm.batchCompletedCards)
+                        Text("/")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Text("\(vm.batchTotalCards)")
+                            .font(.system(.subheadline, design: .monospaced, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text("cards")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    HStack(spacing: 8) {
+                        Text("\(vm.activeTestCount) active")
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        Text("·")
+                            .foregroundStyle(.quaternary)
+                        Text("\(vm.untestedCards.count) queued")
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
             }
-            Spacer()
+
+            HStack(spacing: 6) {
+                batchLiveCounter(value: vm.batchWorkingLive, label: "Pass", color: .green)
+                batchLiveCounter(value: vm.batchDeadLive, label: "Fail", color: .red)
+                batchLiveCounter(value: vm.batchRequeuedLive, label: "Retry", color: .orange)
+            }
+
+            HStack(spacing: 0) {
+                batchMetric(
+                    icon: "clock",
+                    value: formatElapsed(vm.batchElapsedSeconds),
+                    label: "Elapsed"
+                )
+                Spacer()
+                batchMetric(
+                    icon: "gauge.with.dots.needle.33percent",
+                    value: String(format: "%.1f/min", vm.batchCardsPerMinute),
+                    label: "Speed"
+                )
+                Spacer()
+                batchMetric(
+                    icon: "hourglass",
+                    value: vm.batchEstimatedSecondsRemaining > 0 ? formatElapsed(vm.batchEstimatedSecondsRemaining) : "--",
+                    label: "ETA"
+                )
+            }
         }
         .padding(14)
-        .background(Color.teal.opacity(0.08))
-        .clipShape(.rect(cornerRadius: 12))
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(.rect(cornerRadius: 14))
+    }
+
+    private func batchLiveCounter(value: Int, label: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+            Text("\(value)")
+                .font(.system(.subheadline, design: .monospaced, weight: .bold))
+                .foregroundStyle(color)
+                .contentTransition(.numericText(value: Double(value)))
+                .animation(.snappy, value: value)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(color.opacity(0.08))
+        .clipShape(.rect(cornerRadius: 8))
+    }
+
+    private func batchMetric(icon: String, value: String, label: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(.teal.opacity(0.7))
+            Text(value)
+                .font(.system(.caption, design: .monospaced, weight: .semibold))
+                .contentTransition(.numericText())
+                .animation(.snappy, value: value)
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func formatElapsed(_ seconds: Int) -> String {
+        let m = seconds / 60
+        let s = seconds % 60
+        return String(format: "%d:%02d", m, s)
     }
 
     private var queueControls: some View {

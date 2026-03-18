@@ -3,12 +3,16 @@ import SwiftUI
 struct PPSRCardDetailView: View {
     let card: PPSRCard
     let vm: PPSRAutomationViewModel
+    @State private var copiedLabel: String = ""
     @State private var showCopiedToast: Bool = false
+    @State private var statusGlow: Bool = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             List {
                 cardHeader
+                quickCopySection
+                if !card.testResults.isEmpty { miniHistoryChart }
                 binDataSection
                 statsSection
                 actionsSection
@@ -18,15 +22,19 @@ struct PPSRCardDetailView: View {
             .listStyle(.insetGrouped)
 
             if showCopiedToast {
-                Text("Copied to clipboard")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(.green.gradient, in: Capsule())
-                    .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .padding(.bottom, 20)
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                    Text(copiedLabel)
+                        .font(.subheadline.bold())
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.green.gradient, in: Capsule())
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 20)
             }
         }
         .navigationTitle(card.number)
@@ -34,15 +42,37 @@ struct PPSRCardDetailView: View {
         .task {
             if card.binData == nil { await card.loadBINData() }
         }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+                statusGlow = true
+            }
+        }
     }
 
     private var cardHeader: some View {
         Section {
             VStack(spacing: 16) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(LinearGradient(colors: [brandColor, brandColor.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(height: 180)
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: brandColor.opacity(0.9), location: 0),
+                                    .init(color: brandColor.opacity(0.65), location: 0.5),
+                                    .init(color: brandColorSecondary.opacity(0.5), location: 1.0)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(height: 190)
+                        .shadow(color: brandColor.opacity(0.25), radius: 12, y: 6)
+
+                    if card.status == .testing {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white.opacity(statusGlow ? 0.06 : 0.0))
+                            .frame(height: 190)
+                    }
 
                     VStack(alignment: .leading, spacing: 20) {
                         HStack {
@@ -50,14 +80,7 @@ struct PPSRCardDetailView: View {
                                 .font(.title)
                                 .foregroundStyle(.white)
                             Spacer()
-                            HStack(spacing: 4) {
-                                Circle().fill(statusColor).frame(width: 6, height: 6)
-                                Text(card.status.rawValue).font(.caption2.bold())
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Capsule())
+                            statusBadge
                         }
 
                         Text(formattedCardNumber)
@@ -79,17 +102,121 @@ struct PPSRCardDetailView: View {
                     }
                     .padding(20)
                 }
+                .contextMenu {
+                    Button { copyToClipboard(card.pipeFormat, label: "Pipe format copied") } label: {
+                        Label("Copy Pipe Format", systemImage: "doc.on.doc")
+                    }
+                    Button { copyToClipboard(card.number, label: "Card number copied") } label: {
+                        Label("Copy Number", systemImage: "number")
+                    }
+                    Button { copyToClipboard("\(card.number)|\(card.formattedExpiry)|\(card.cvv)", label: "Full card copied") } label: {
+                        Label("Copy Full Card", systemImage: "creditcard")
+                    }
+                    Divider()
+                    ShareLink(item: card.pipeFormat) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                }
             }
             .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
         }
     }
 
-    private var statusColor: Color {
-        switch card.status {
-        case .working: .green
-        case .dead: .red
-        case .testing: .orange
-        case .untested: .secondary
+    @ViewBuilder
+    private var statusBadge: some View {
+        HStack(spacing: 5) {
+            switch card.status {
+            case .working:
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.caption)
+                    .symbolEffect(.bounce, value: card.status)
+            case .testing:
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(.white)
+            case .dead:
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            case .untested:
+                Circle().fill(Color.secondary).frame(width: 6, height: 6)
+            }
+            Text(card.status.rawValue).font(.caption2.bold())
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+    }
+
+    private var quickCopySection: some View {
+        Section {
+            HStack(spacing: 10) {
+                quickCopyButton(label: "Number", value: card.number, icon: "number", toastLabel: "Card number copied")
+                quickCopyButton(label: "Pipe", value: card.pipeFormat, icon: "rectangle.split.3x1", toastLabel: "Pipe format copied")
+                quickCopyButton(label: "BIN", value: card.binPrefix, icon: "barcode", toastLabel: "BIN copied")
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        }
+    }
+
+    private func quickCopyButton(label: String, value: String, icon: String, toastLabel: String) -> some View {
+        Button {
+            copyToClipboard(value, label: toastLabel)
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.subheadline)
+                    .foregroundStyle(.teal)
+                Text(label)
+                    .font(.system(.caption2, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Color.teal.opacity(0.08))
+            .clipShape(.rect(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.impact(weight: .light), trigger: showCopiedToast)
+    }
+
+    @ViewBuilder
+    private var miniHistoryChart: some View {
+        let recentResults = Array(card.testResults.prefix(10))
+        if !recentResults.isEmpty {
+            Section("Recent Results") {
+                HStack(spacing: 3) {
+                    ForEach(recentResults.reversed()) { result in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(result.success ? Color.green : Color.red)
+                            .frame(height: result.success ? 28 : 18)
+                            .frame(maxWidth: .infinity)
+                    }
+                    if recentResults.count < 10 {
+                        ForEach(0..<(10 - recentResults.count), id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color(.tertiarySystemFill))
+                                .frame(height: 10)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+                .frame(height: 32, alignment: .bottom)
+                .padding(.vertical, 4)
+
+                HStack {
+                    Text("Last \(recentResults.count) tests")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    let passCount = recentResults.filter(\.success).count
+                    Text("\(passCount)/\(recentResults.count) passed")
+                        .font(.system(.caption2, design: .monospaced, weight: .medium))
+                        .foregroundStyle(passCount > recentResults.count / 2 ? .green : .red)
+                }
+            }
         }
     }
 
@@ -153,17 +280,6 @@ struct PPSRCardDetailView: View {
             .listRowBackground(card.status == .testing ? Color.teal.opacity(0.3) : Color.teal)
             .foregroundStyle(.white)
 
-            Button {
-                UIPasteboard.general.string = card.pipeFormat
-                withAnimation(.spring(duration: 0.3)) { showCopiedToast = true }
-                Task {
-                    try? await Task.sleep(for: .seconds(1.5))
-                    withAnimation { showCopiedToast = false }
-                }
-            } label: {
-                Label("Copy Card", systemImage: "doc.on.doc")
-            }
-
             if card.status == .dead {
                 Button { vm.restoreCard(card) } label: { Label("Restore Card", systemImage: "arrow.counterclockwise") }
                 Button(role: .destructive) { vm.deleteCard(card) } label: { Label("Delete Permanently", systemImage: "trash") }
@@ -223,6 +339,19 @@ struct PPSRCardDetailView: View {
         }
     }
 
+    private var brandColorSecondary: Color {
+        switch card.brand {
+        case .visa: .cyan
+        case .mastercard: .yellow
+        case .amex: .mint
+        case .jcb: .pink
+        case .discover: .indigo
+        case .dinersClub: .purple
+        case .unionPay: .cyan
+        case .unknown: Color(.systemGray4)
+        }
+    }
+
     private var formattedCardNumber: String {
         let num = card.number
         var groups: [String] = []
@@ -242,6 +371,16 @@ struct PPSRCardDetailView: View {
         return countryCode.uppercased().unicodeScalars.compactMap {
             UnicodeScalar(base + $0.value).map { String($0) }
         }.joined()
+    }
+
+    private func copyToClipboard(_ value: String, label: String) {
+        UIPasteboard.general.string = value
+        copiedLabel = label
+        withAnimation(.spring(duration: 0.3)) { showCopiedToast = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation { showCopiedToast = false }
+        }
     }
 }
 

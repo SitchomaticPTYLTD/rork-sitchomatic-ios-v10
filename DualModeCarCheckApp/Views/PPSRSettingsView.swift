@@ -84,7 +84,7 @@ struct PPSRSettingsView: View {
                 }
             }
         } footer: {
-            Text("Network configs are device-wide. Changes apply to Joe, Ignition & PPSR.")
+            Text("Network configs are device-wide. Changes apply to all PPSR sessions.")
         }
     }
 
