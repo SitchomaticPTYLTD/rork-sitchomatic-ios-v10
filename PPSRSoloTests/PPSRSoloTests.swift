@@ -1,5 +1,5 @@
 import Testing
-@testable import DualModeCarCheckApp
+@testable import PPSRSolo
 
 struct CardBrandDetectionTests {
     @Test func detectsVisa() {

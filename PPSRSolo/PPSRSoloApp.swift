@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct DualModeCarCheckAppApp: App {
+struct PPSRSoloApp: App {
     @AppStorage("activeAppMode") private var activeModeRaw: String = ""
     @AppStorage("introVideoEnabled") private var introVideoEnabled: Bool = false
     @State private var introFinished: Bool = false

@@ -1,13 +1,13 @@
 //
-//  DualModeCarCheckAppUITestsLaunchTests.swift
-//  DualModeCarCheckAppUITests
+//  PPSRSoloUITestsLaunchTests.swift
+//  PPSRSoloUITests
 //
 //  Created by Rork on March 1, 2026.
 //
 
 import XCTest
 
-final class DualModeCarCheckAppUITestsLaunchTests: XCTestCase {
+final class PPSRSoloUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

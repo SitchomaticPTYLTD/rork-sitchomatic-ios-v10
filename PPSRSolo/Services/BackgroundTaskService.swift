@@ -4,7 +4,7 @@ import UIKit
 @MainActor
 class BackgroundTaskService {
     static let shared = BackgroundTaskService()
-    static let batchProcessingIdentifier = "Sitchomatic.ios77.batchProcessing"
+    static let batchProcessingIdentifier = "PPSRSolo.batchProcessing"
 
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
 

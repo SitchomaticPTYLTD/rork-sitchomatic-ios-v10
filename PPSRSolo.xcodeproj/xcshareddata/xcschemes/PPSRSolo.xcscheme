@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "105FC5792E9EAD3100EA8BCF"
-               BuildableName = "DualModeCarCheckApp.app"
-               BlueprintName = "PPSRONLY"
-               ReferencedContainer = "container:PPSRONLY.xcodeproj">
+               BuildableName = "PPSRSolo.app"
+               BlueprintName = "PPSRSolo"
+               ReferencedContainer = "container:PPSRSolo.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -36,9 +36,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "105FC5882E9EAD3200EA8BCF"
-               BuildableName = "DualModeCarCheckAppTests.xctest"
-               BlueprintName = "PPSRONLY"
-               ReferencedContainer = "container:PPSRONLY.xcodeproj">
+               BuildableName = "PPSRSoloTests.xctest"
+               BlueprintName = "PPSRSolo"
+               ReferencedContainer = "container:PPSRSolo.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -47,9 +47,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "105FC5922E9EAD3200EA8BCF"
-               BuildableName = "DualModeCarCheckAppUITests.xctest"
-               BlueprintName = "PPSRONLY"
-               ReferencedContainer = "container:PPSRONLY.xcodeproj">
+               BuildableName = "PPSRSoloUITests.xctest"
+               BlueprintName = "PPSRSolo"
+               ReferencedContainer = "container:PPSRSolo.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -69,9 +69,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "105FC5792E9EAD3100EA8BCF"
-            BuildableName = "DualModeCarCheckApp.app"
-            BlueprintName = "PPSRONLY"
-            ReferencedContainer = "container:PPSRONLY.xcodeproj">
+            BuildableName = "PPSRSolo.app"
+            BlueprintName = "PPSRSolo"
+            ReferencedContainer = "container:PPSRSolo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -86,9 +86,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "105FC5792E9EAD3100EA8BCF"
-            BuildableName = "DualModeCarCheckApp.app"
-            BlueprintName = "PPSRONLY"
-            ReferencedContainer = "container:PPSRONLY.xcodeproj">
+            BuildableName = "PPSRSolo.app"
+            BlueprintName = "PPSRSolo"
+            ReferencedContainer = "container:PPSRSolo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

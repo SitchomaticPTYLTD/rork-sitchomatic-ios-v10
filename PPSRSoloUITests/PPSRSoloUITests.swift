@@ -1,13 +1,13 @@
 //
-//  DualModeCarCheckAppUITests.swift
-//  DualModeCarCheckAppUITests
+//  PPSRSoloUITests.swift
+//  PPSRSoloUITests
 //
 //  Created by Rork on March 1, 2026.
 //
 
 import XCTest
 
-final class DualModeCarCheckAppUITests: XCTestCase {
+final class PPSRSoloUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
