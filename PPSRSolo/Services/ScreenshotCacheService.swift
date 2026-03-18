@@ -8,19 +8,23 @@ class ScreenshotCacheService {
     private let fullDirectory: URL
     private let thumbDirectory: URL
     private let metadataURL: URL
+    private let checkMapURL: URL
     private let maxMemoryCacheCount = 200
     private var memoryCache: [String: UIImage] = [:]
     private var thumbCache: [String: UIImage] = [:]
     private var accessOrder: [String] = []
     private let thumbSize: CGFloat = 200
+    private var checkScreenshotMap: [String: [String]] = [:]
 
     init() {
         let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         fullDirectory = cachesDir.appendingPathComponent("ScreenshotCache/full", isDirectory: true)
         thumbDirectory = cachesDir.appendingPathComponent("ScreenshotCache/thumb", isDirectory: true)
         metadataURL = cachesDir.appendingPathComponent("ScreenshotCache/metadata.json")
+        checkMapURL = cachesDir.appendingPathComponent("ScreenshotCache/check_map.json")
         try? FileManager.default.createDirectory(at: fullDirectory, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: thumbDirectory, withIntermediateDirectories: true)
+        loadCheckMap()
     }
 
     func store(_ image: UIImage, forKey key: String) {
@@ -85,6 +89,57 @@ class ScreenshotCacheService {
         }
     }
 
+    func storeDebugScreenshot(_ screenshot: PPSRDebugScreenshot, forCheckId checkId: String) {
+        storeDebugScreenshot(screenshot)
+        var ids = checkScreenshotMap[checkId] ?? []
+        if !ids.contains(screenshot.id) {
+            ids.append(screenshot.id)
+            checkScreenshotMap[checkId] = ids
+            persistCheckMap()
+        }
+    }
+
+    func screenshotIds(forCheckId checkId: String) -> [String] {
+        checkScreenshotMap[checkId] ?? []
+    }
+
+    func screenshotCount(forCheckId checkId: String) -> Int {
+        checkScreenshotMap[checkId]?.count ?? 0
+    }
+
+    func loadScreenshots(forCheckId checkId: String) -> [UIImage] {
+        screenshotIds(forCheckId: checkId).compactMap { retrieveFull(forKey: "debug_\($0)") }
+    }
+
+    func loadThumbnails(forCheckId checkId: String) -> [UIImage] {
+        screenshotIds(forCheckId: checkId).compactMap { retrieveThumbnail(forKey: "debug_\($0)") }
+    }
+
+    func batchSaveDebugScreenshots(_ screenshots: [PPSRDebugScreenshot]) {
+        for screenshot in screenshots {
+            storeDebugScreenshot(screenshot)
+        }
+        saveDebugScreenshotMetadata(screenshots)
+    }
+
+    func removeScreenshots(forCheckId checkId: String) {
+        guard let ids = checkScreenshotMap.removeValue(forKey: checkId) else { return }
+        for id in ids {
+            let fullKey = "debug_\(id)"
+            let cropKey = "debug_\(id)_crop"
+            memoryCache.removeValue(forKey: fullKey)
+            memoryCache.removeValue(forKey: cropKey)
+            thumbCache.removeValue(forKey: fullKey)
+            thumbCache.removeValue(forKey: cropKey)
+            accessOrder.removeAll { $0 == fullKey || $0 == cropKey }
+            try? FileManager.default.removeItem(at: fullFileURL(for: fullKey))
+            try? FileManager.default.removeItem(at: thumbFileURL(for: fullKey))
+            try? FileManager.default.removeItem(at: fullFileURL(for: cropKey))
+            try? FileManager.default.removeItem(at: thumbFileURL(for: cropKey))
+        }
+        persistCheckMap()
+    }
+
     func loadDebugScreenshotImage(id: String) -> UIImage? {
         retrieveFull(forKey: "debug_\(id)")
     }
@@ -110,9 +165,11 @@ class ScreenshotCacheService {
         let userOverride: String
         let userNote: String
         let hasCrop: Bool
+        var checkId: String?
     }
 
     func saveDebugScreenshotMetadata(_ screenshots: [PPSRDebugScreenshot]) {
+        let reverseMap = buildReverseCheckMap()
         let entries = screenshots.map { s in
             ScreenshotMetadataEntry(
                 id: s.id, timestamp: s.timestamp, stepName: s.stepName,
@@ -121,7 +178,8 @@ class ScreenshotCacheService {
                 autoDetectedResult: s.autoDetectedResult.rawValue,
                 userOverride: s.userOverride.rawValue,
                 userNote: s.userNote,
-                hasCrop: s.croppedImage != nil
+                hasCrop: s.croppedImage != nil,
+                checkId: reverseMap[s.id]
             )
         }
         Task.detached(priority: .utility) {
@@ -164,6 +222,14 @@ class ScreenshotCacheService {
             screenshot.userOverride = UserResultOverride(rawValue: entry.userOverride) ?? .none
             screenshot.userNote = entry.userNote
             results.append(screenshot)
+
+            if let checkId = entry.checkId, !checkId.isEmpty {
+                var ids = checkScreenshotMap[checkId] ?? []
+                if !ids.contains(entry.id) {
+                    ids.append(entry.id)
+                    checkScreenshotMap[checkId] = ids
+                }
+            }
         }
         return results
     }
@@ -172,9 +238,11 @@ class ScreenshotCacheService {
         memoryCache.removeAll()
         thumbCache.removeAll()
         accessOrder.removeAll()
+        checkScreenshotMap.removeAll()
         try? FileManager.default.removeItem(at: fullDirectory)
         try? FileManager.default.removeItem(at: thumbDirectory)
         try? FileManager.default.removeItem(at: metadataURL)
+        try? FileManager.default.removeItem(at: checkMapURL)
         try? FileManager.default.createDirectory(at: fullDirectory, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: thumbDirectory, withIntermediateDirectories: true)
     }
@@ -241,5 +309,33 @@ class ScreenshotCacheService {
         let safeKey = key.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
         let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         return cachesDir.appendingPathComponent("ScreenshotCache/thumb/\(safeKey).jpg")
+    }
+
+    private func persistCheckMap() {
+        let mapCopy = checkScreenshotMap
+        let url = checkMapURL
+        Task.detached(priority: .utility) {
+            let encoder = JSONEncoder()
+            if let data = try? encoder.encode(mapCopy) {
+                try? data.write(to: url, options: .atomic)
+            }
+        }
+    }
+
+    private func loadCheckMap() {
+        guard FileManager.default.fileExists(atPath: checkMapURL.path()),
+              let data = try? Data(contentsOf: checkMapURL),
+              let map = try? JSONDecoder().decode([String: [String]].self, from: data) else { return }
+        checkScreenshotMap = map
+    }
+
+    private func buildReverseCheckMap() -> [String: String] {
+        var reverse: [String: String] = [:]
+        for (checkId, ssIds) in checkScreenshotMap {
+            for ssId in ssIds {
+                reverse[ssId] = checkId
+            }
+        }
+        return reverse
     }
 }

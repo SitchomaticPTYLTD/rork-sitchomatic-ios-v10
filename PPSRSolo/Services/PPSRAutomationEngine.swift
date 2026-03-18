@@ -505,7 +505,7 @@ class PPSRAutomationEngine {
         )
         check.screenshotIds.append(screenshot.id)
 
-        screenshotCache.storeDebugScreenshot(screenshot)
+        screenshotCache.storeDebugScreenshot(screenshot, forCheckId: check.id.uuidString)
 
         onScreenshot?(screenshot)
     }
