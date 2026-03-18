@@ -220,7 +220,8 @@ struct SavedCredentialsView: View {
         Text(title)
             .font(.system(.caption2, design: .monospaced, weight: .bold))
             .foregroundStyle(.secondary)
-            .frame(width: flex ? nil : width, maxWidth: flex ? .infinity : nil, alignment: .leading)
+            .frame(maxWidth: flex ? .infinity : nil, alignment: .leading)
+            .frame(width: flex ? nil : width)
     }
 
     private func tableRow(card: PPSRCard, isEven: Bool) -> some View {
@@ -271,7 +272,7 @@ struct SavedCredentialsView: View {
 
                 Text(card.totalTests > 0 ? "\(card.successCount)/\(card.totalTests)" : "-")
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(card.totalTests > 0 ? (card.lastTestSuccess == true ? .green : .red) : .tertiary)
+                    .foregroundStyle(card.totalTests > 0 ? (card.lastTestSuccess == true ? Color.green : Color.red) : Color.gray.opacity(0.5))
                     .frame(width: 60, alignment: .leading)
 
                 Text(card.binData?.country ?? "")

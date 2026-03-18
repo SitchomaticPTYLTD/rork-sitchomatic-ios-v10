@@ -73,8 +73,10 @@ struct ContentView: View {
     }
 
     private var iPadSidebar: some View {
-        List(AppTab.allCases, id: \.self, selection: $selectedTab) { tab in
-            Label(tab.title, systemImage: tab.icon)
+        List(selection: $selectedTab) {
+            ForEach(AppTab.allCases, id: \.self) { tab in
+                Label(tab.title, systemImage: tab.icon)
+            }
         }
         .navigationTitle("PPSR Solo")
         .listStyle(.sidebar)
@@ -217,7 +219,7 @@ private struct KeyboardShortcutModifier<Shortcuts: View>: ViewModifier {
 }
 
 extension View {
-    func keyboardShortcut(shortcuts enabled: Bool, @ViewBuilder content: () -> some View) -> some View {
+    func keyboardShortcut<S: View>(shortcuts enabled: Bool, @ViewBuilder content: () -> S) -> some View {
         modifier(KeyboardShortcutModifier(enabled: enabled, shortcuts: content()))
     }
 }
