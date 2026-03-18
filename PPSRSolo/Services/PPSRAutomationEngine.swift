@@ -472,22 +472,30 @@ class PPSRAutomationEngine {
         check.logs.append(PPSRLogEntry(message: "ERROR: \(message)", level: .error))
     }
 
+    private let screenshotCache = ScreenshotCacheService.shared
+
     private func captureScreenshotForCheck(session: LoginWebSession, check: PPSRCheck, step: String, note: String, autoResult: PPSRDebugScreenshot.AutoDetectedResult = .unknown) async {
         let cropRect = screenshotCropRect == .zero ? nil : screenshotCropRect
         let result = await session.captureScreenshotWithCrop(cropRect: cropRect)
-        guard let fullImage = result.full else { return }
+        guard let fullImage = result.full else {
+            logger.log("Screenshot capture returned nil for step: \(step)", category: .screenshot, level: .error)
+            return
+        }
 
         check.responseSnapshot = fullImage
 
+        let dims = "\(Int(fullImage.size.width))x\(Int(fullImage.size.height))"
+        let fileSize = fullImage.jpegData(compressionQuality: 0.6).map { ByteCountFormatter.string(fromByteCount: Int64($0.count), countStyle: .file) } ?? "?"
+        logger.log("Screenshot for \(step): \(dims) ~\(fileSize)", category: .screenshot, level: .debug)
 
         let compressed: UIImage
-        if let jpegData = fullImage.jpegData(compressionQuality: 0.3), let ci = UIImage(data: jpegData) {
+        if let jpegData = fullImage.jpegData(compressionQuality: 0.5), let ci = UIImage(data: jpegData) {
             compressed = ci
         } else {
             compressed = fullImage
         }
         var compressedCrop: UIImage?
-        if let cropped = result.cropped, let jpegData = cropped.jpegData(compressionQuality: 0.4), let ci = UIImage(data: jpegData) {
+        if let cropped = result.cropped, let jpegData = cropped.jpegData(compressionQuality: 0.5), let ci = UIImage(data: jpegData) {
             compressedCrop = ci
         }
         let screenshot = PPSRDebugScreenshot(
@@ -496,6 +504,9 @@ class PPSRAutomationEngine {
             note: note, autoDetectedResult: autoResult
         )
         check.screenshotIds.append(screenshot.id)
+
+        screenshotCache.storeDebugScreenshot(screenshot)
+
         onScreenshot?(screenshot)
     }
 

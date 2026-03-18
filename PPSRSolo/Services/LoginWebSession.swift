@@ -580,23 +580,61 @@ class LoginWebSession: NSObject {
         let cropped: UIImage?
     }
 
-    func captureScreenshotWithCrop(cropRect: CGRect?) async -> ScreenshotResult {
-        guard let wv = webView else { return ScreenshotResult(full: nil, cropped: nil) }
-        let config = WKSnapshotConfiguration()
-        do {
-            let image = try await wv.takeSnapshot(configuration: config)
-            var cropped: UIImage?
-            if let rect = cropRect, rect != .zero {
-                let scale = image.scale
-                let scaledRect = CGRect(x: rect.origin.x * scale, y: rect.origin.y * scale, width: rect.size.width * scale, height: rect.size.height * scale)
-                if let cgCropped = image.cgImage?.cropping(to: scaledRect) {
-                    cropped = UIImage(cgImage: cgCropped, scale: scale, orientation: image.imageOrientation)
-                }
-            }
-            return ScreenshotResult(full: image, cropped: cropped)
-        } catch {
+    func captureScreenshotWithCrop(cropRect: CGRect?, maxRetries: Int = 3) async -> ScreenshotResult {
+        guard let wv = webView else {
+            logger.log("Screenshot: no webview available", category: .screenshot, level: .error)
             return ScreenshotResult(full: nil, cropped: nil)
         }
+
+        try? await Task.sleep(for: .milliseconds(300))
+
+        var lastError: Error?
+        for attempt in 1...maxRetries {
+            let config = WKSnapshotConfiguration()
+            do {
+                let image = try await wv.takeSnapshot(configuration: config)
+
+                if BlankScreenshotDetector.isBlank(image) && attempt < maxRetries {
+                    logger.log("Screenshot attempt \(attempt)/\(maxRetries): blank image detected, retrying...", category: .screenshot, level: .warning)
+                    try? await Task.sleep(for: .milliseconds(500 * attempt))
+                    continue
+                }
+
+                let dims = "\(Int(image.size.width))x\(Int(image.size.height))@\(Int(image.scale))x"
+                logger.log("Screenshot captured: \(dims) on attempt \(attempt)", category: .screenshot, level: .debug)
+
+                var cropped: UIImage?
+                if let rect = cropRect, rect != .zero, let cgImage = image.cgImage {
+                    let imgW = CGFloat(cgImage.width)
+                    let imgH = CGFloat(cgImage.height)
+                    let viewW = image.size.width
+                    let viewH = image.size.height
+                    let scaleX = imgW / viewW
+                    let scaleY = imgH / viewH
+                    let pixelRect = CGRect(
+                        x: rect.origin.x * scaleX,
+                        y: rect.origin.y * scaleY,
+                        width: rect.size.width * scaleX,
+                        height: rect.size.height * scaleY
+                    ).intersection(CGRect(x: 0, y: 0, width: imgW, height: imgH))
+
+                    if pixelRect.width > 1, pixelRect.height > 1,
+                       let cgCropped = cgImage.cropping(to: pixelRect) {
+                        cropped = UIImage(cgImage: cgCropped, scale: image.scale, orientation: image.imageOrientation)
+                    }
+                }
+                return ScreenshotResult(full: image, cropped: cropped)
+            } catch {
+                lastError = error
+                logger.log("Screenshot attempt \(attempt)/\(maxRetries) failed: \(error.localizedDescription)", category: .screenshot, level: .warning)
+                if attempt < maxRetries {
+                    try? await Task.sleep(for: .milliseconds(300 * attempt))
+                }
+            }
+        }
+
+        logger.log("Screenshot FAILED after \(maxRetries) attempts: \(lastError?.localizedDescription ?? "unknown")", category: .screenshot, level: .error)
+        return ScreenshotResult(full: nil, cropped: nil)
     }
 
     func checkForIframes() async -> Int {

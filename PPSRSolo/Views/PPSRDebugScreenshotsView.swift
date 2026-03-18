@@ -22,9 +22,9 @@ struct PPSRDebugScreenshotsView: View {
     @Bindable var vm: PPSRAutomationViewModel
     @State private var selectedScreenshot: PPSRDebugScreenshot?
     @State private var selectedAlbum: ScreenshotAlbum?
-    @State private var viewMode: ViewMode = .albums
+    @State private var viewMode: ScreenshotViewMode = .albums
 
-    private enum ViewMode: String, CaseIterable {
+    private enum ScreenshotViewMode: String, CaseIterable {
         case albums = "Albums"
         case all = "All"
     }
@@ -42,10 +42,22 @@ struct PPSRDebugScreenshotsView: View {
                 ContentUnavailableView("No Screenshots", systemImage: "photo.stack", description: Text("Enable Debug Mode and run a test."))
             } else {
                 VStack(spacing: 0) {
-                    Picker("View", selection: $viewMode) {
-                        ForEach(ViewMode.allCases, id: \.self) { mode in Text(mode.rawValue).tag(mode) }
+                    HStack {
+                        Picker("View", selection: $viewMode) {
+                            ForEach(ScreenshotViewMode.allCases, id: \.self) { mode in Text(mode.rawValue).tag(mode) }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Spacer()
+
+                        Text("\(vm.debugScreenshots.count)")
+                            .font(.system(.caption, design: .monospaced, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Color(.tertiarySystemFill))
+                            .clipShape(Capsule())
                     }
-                    .pickerStyle(.segmented).padding(.horizontal).padding(.vertical, 8)
+                    .padding(.horizontal).padding(.vertical, 8)
 
                     switch viewMode {
                     case .albums:
@@ -84,20 +96,41 @@ struct AlbumCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let firstShot = album.screenshots.first {
-                Color.clear.frame(height: 140)
-                    .overlay { Image(uiImage: firstShot.image).resizable().aspectRatio(contentMode: .fill).allowsHitTesting(false) }
-                    .clipShape(.rect(cornerRadii: .init(topLeading: 12, topTrailing: 12)))
-                    .overlay(alignment: .bottomLeading) {
-                        Text("\(album.screenshots.count) screenshots")
-                            .font(.system(.caption2, design: .monospaced, weight: .medium))
-                            .foregroundStyle(.white).padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(.black.opacity(0.6)).clipShape(Capsule()).padding(8)
-                    }
+            ZStack(alignment: .bottomLeading) {
+                if album.screenshots.count >= 2 {
+                    Color(.tertiarySystemFill).frame(height: 140)
+                        .overlay {
+                            Image(uiImage: album.screenshots[1].displayImage)
+                                .resizable().aspectRatio(contentMode: .fill).allowsHitTesting(false)
+                        }
+                        .clipShape(.rect(cornerRadii: .init(topLeading: 12, topTrailing: 12)))
+                        .offset(y: -4)
+                        .opacity(0.5)
+                        .scaleEffect(0.96)
+                }
+
+                if let firstShot = album.screenshots.first {
+                    Color(.secondarySystemGroupedBackground).frame(height: 140)
+                        .overlay { Image(uiImage: firstShot.displayImage).resizable().aspectRatio(contentMode: .fill).allowsHitTesting(false) }
+                        .clipShape(.rect(cornerRadii: .init(topLeading: 12, topTrailing: 12)))
+                }
+
+                HStack(spacing: 6) {
+                    Image(systemName: "photo.stack.fill").font(.caption2)
+                    Text("\(album.screenshots.count)")
+                        .font(.system(.caption2, design: .monospaced, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(.black.opacity(0.65)).clipShape(Capsule()).padding(8)
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(album.title).font(.system(.subheadline, design: .monospaced, weight: .semibold)).lineLimit(1)
+                HStack {
+                    Text(album.title).font(.system(.subheadline, design: .monospaced, weight: .semibold)).lineLimit(1)
+                    Spacer()
+                    statusBadge
+                }
                 HStack(spacing: 12) {
                     Label("\(album.screenshots.count) tests", systemImage: "doc.text")
                     Spacer()
@@ -114,6 +147,18 @@ struct AlbumCard: View {
         }
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(.rect(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        switch album.overallResult {
+        case .markedPass:
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).font(.caption)
+        case .markedFail:
+            Image(systemName: "xmark.circle.fill").foregroundStyle(.red).font(.caption)
+        case .none:
+            Image(systemName: "questionmark.circle.fill").foregroundStyle(.secondary).font(.caption)
+        }
     }
 }
 
@@ -163,9 +208,19 @@ struct ScreenshotCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Color.clear.frame(height: 180)
-                .overlay { Image(uiImage: screenshot.displayImage).resizable().aspectRatio(contentMode: .fill).allowsHitTesting(false) }
-                .clipShape(.rect(cornerRadii: .init(topLeading: 12, topTrailing: 12)))
+            ZStack(alignment: .topTrailing) {
+                Color(.secondarySystemGroupedBackground).frame(height: 180)
+                    .overlay { Image(uiImage: screenshot.displayImage).resizable().aspectRatio(contentMode: .fill).allowsHitTesting(false) }
+                    .clipShape(.rect(cornerRadii: .init(topLeading: 12, topTrailing: 12)))
+
+                Image(systemName: screenshot.statusIcon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(screenshot.statusColor)
+                    .padding(6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .padding(8)
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -210,6 +265,7 @@ struct ScreenshotCorrectionSheet: View {
     @State private var showRetestConfirmation: Bool = false
     @State private var pendingOverride: UserResultOverride = .none
     @State private var showFullPage: Bool = false
+    @State private var showFullViewer: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -222,10 +278,15 @@ struct ScreenshotCorrectionSheet: View {
                                 Text("Full Page").tag(true)
                             }.pickerStyle(.segmented)
                         }
-                        Image(uiImage: showFullPage ? screenshot.image : screenshot.displayImage)
-                            .resizable().aspectRatio(contentMode: .fit)
-                            .clipShape(.rect(cornerRadius: 8))
-                            .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+                        Button { showFullViewer = true } label: {
+                            Image(uiImage: showFullPage ? screenshot.image : screenshot.displayImage)
+                                .resizable().aspectRatio(contentMode: .fit)
+                                .clipShape(.rect(cornerRadius: 8))
+                                .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+                        }
+                        .buttonStyle(.plain)
+
+                        Text("Tap to zoom").font(.caption2).foregroundStyle(.tertiary)
                     }
 
                     correctionSection
@@ -249,6 +310,9 @@ struct ScreenshotCorrectionSheet: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Add \(screenshot.cardDisplayNumber) back to the untested queue?")
+            }
+            .fullScreenCover(isPresented: $showFullViewer) {
+                PPSRFullScreenshotView(image: showFullPage ? screenshot.image : screenshot.displayImage)
             }
         }
         .presentationDetents([.large])

@@ -2,14 +2,14 @@ import UIKit
 
 nonisolated enum BlankScreenshotDetector: Sendable {
 
-    static func isBlank(_ image: UIImage, threshold: Double = 0.97) -> Bool {
+    static func isBlank(_ image: UIImage, threshold: Double = 0.95) -> Bool {
         guard let cgImage = image.cgImage else { return true }
 
         let width = cgImage.width
         let height = cgImage.height
         guard width > 0, height > 0 else { return true }
 
-        let sampleSize = 60
+        let sampleSize = 100
         let sampleW = min(sampleSize, width)
         let sampleH = min(sampleSize, height)
 
@@ -38,7 +38,14 @@ nonisolated enum BlankScreenshotDetector: Sendable {
         let firstG = pixelData[1]
         let firstB = pixelData[2]
 
-        let tolerance: UInt8 = 12
+        let tolerance: UInt8 = 15
+
+        var sumR: Double = 0
+        var sumG: Double = 0
+        var sumB: Double = 0
+        var sumSqR: Double = 0
+        var sumSqG: Double = 0
+        var sumSqB: Double = 0
 
         for i in 0..<totalPixels {
             let offset = i * bytesPerPixel
@@ -53,9 +60,25 @@ nonisolated enum BlankScreenshotDetector: Sendable {
             if dr <= tolerance && dg <= tolerance && db <= tolerance {
                 dominantCount += 1
             }
+
+            let rd = Double(r)
+            let gd = Double(g)
+            let bd = Double(b)
+            sumR += rd; sumG += gd; sumB += bd
+            sumSqR += rd * rd; sumSqG += gd * gd; sumSqB += bd * bd
         }
 
-        let uniformity = Double(dominantCount) / Double(totalPixels)
+        let n = Double(totalPixels)
+        let varianceR = (sumSqR / n) - (sumR / n) * (sumR / n)
+        let varianceG = (sumSqG / n) - (sumG / n) * (sumG / n)
+        let varianceB = (sumSqB / n) - (sumB / n) * (sumB / n)
+        let totalVariance = varianceR + varianceG + varianceB
+
+        if totalVariance < 50.0 {
+            return true
+        }
+
+        let uniformity = Double(dominantCount) / n
         return uniformity >= threshold
     }
 }

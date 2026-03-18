@@ -1,47 +1,65 @@
-# Step 1: iPad-First Layout & Multitasking
+# Full Screenshot System Overhaul
 
-
-## What's Changing
-
-Transform the app from a phone-first tab layout into a three-column iPad-optimized experience with full multitasking support.
+## Overview
+Complete rewrite of the screenshot capture, storage, and viewing system to make it reliable, persistent, and user-friendly.
 
 ---
 
 ### **Features**
 
-- **Three-column layout on iPad** — Left sidebar shows navigation (Dashboard, Cards, Working, Sessions, Settings), middle column shows the card list or dashboard content, right column shows card detail or live log
-- **Automatic fallback on iPhone** — Standard tab bar on smaller screens, three-column only on iPad
-- **Spreadsheet-style table view** for cards on iPad — sortable columns (BIN, Brand, Number, Expiry, Status, Tests, Country) with tap-to-sort headers
-- **3-column tile grid** in tile mode on iPad (vs 2-column on iPhone)
-- **Keyboard shortcuts** — ⌘R to run tests, ⌘N to import cards, ⌘F to search, Space to pause/resume batch, ⌘. to stop
-- **Split View & Slide Over support** — app resizes gracefully in all iPad multitasking modes
-- **Live log panel** in the right column during batch runs — shows real-time log entries alongside card list
+- **Reliable screenshot capture** — retries up to 3 times if capture fails, with a short rendering delay before each attempt to ensure the page is fully drawn
+- **Disk persistence** — screenshots are automatically saved to disk via the existing cache service, so they survive app restarts and memory pressure
+- **Smart blank detection** — lowered threshold so real pages aren't falsely flagged as blank; adds variance-based check alongside the existing uniformity check
+- **Correct crop calculations** — fixes the crop math so the focus area actually matches what you configure in settings
+- **Pinch-to-zoom screenshot viewer** — the full-screen screenshot view now supports pinch-to-zoom and drag to pan, so you can inspect fine details
+- **Screenshot count badge** — session tiles and rows show the actual number of screenshots captured per check
+- **Persistent screenshot gallery** — debug screenshots load from disk on app launch instead of being lost when the app restarts
+- **Memory-efficient display** — thumbnails in lists/grids use compressed versions; full-resolution only loaded when viewing detail
 
 ---
 
 ### **Design**
 
-- Sidebar uses SF Symbols with teal accent, matching the existing dark theme
-- Table view uses monospaced fonts for card numbers and BIN data, with alternating row backgrounds for readability
-- Column widths adapt to available space — in Split View narrow mode, falls back to two-column or single-column automatically
-- Sort indicators (chevrons) on table headers
-- Status dots (green/red/teal/gray) in the table status column
-- Card detail slides into the right column without navigation push (stays in context)
+- Full-screen viewer gets a dark background with pinch-zoom and double-tap-to-zoom gesture
+- Screenshot cards in the gallery show a subtle status indicator (green checkmark, red X, or gray question mark) overlaid on the thumbnail corner
+- Album cards show a stacked-photo effect with the count badge
+- The correction sheet keeps its existing layout but with smoother image transitions
 
 ---
 
-### **Screens / Layout**
+### **Changes by Area**
 
-- **iPad (full screen)**: Three columns — Sidebar | Card List/Dashboard | Detail/Log
-- **iPad (Split View narrow)**: Two columns — collapses sidebar into toolbar button
-- **iPhone**: Standard 5-tab layout (unchanged from current)
-- **Card Table View (iPad)**: Full-width table with 7 sortable columns, row selection, swipe actions
-- **Live Batch Panel**: When a batch is running, the right column shows live progress + scrolling log
+**Screenshot Capture (LoginWebSession)**
+- Add a 300ms render delay before capture
+- Retry capture up to 3 times on failure
+- Log capture failures with error details
+- Fix crop rect math to properly handle point-to-pixel conversion
 
----
+**Screenshot Cache Service**
+- Add ability to store/retrieve screenshots by check ID
+- Add batch save for debug screenshots
+- Add load-all method to restore screenshots on launch
+- Add thumbnail generation (smaller JPEG for list views)
 
-### **What Stays the Same**
+**Blank Screenshot Detector**
+- Lower uniformity threshold from 97% to 95%
+- Add pixel variance check as secondary signal
+- Increase sample size for more accurate detection
 
-- All existing functionality, settings, and automation logic untouched
-- Main menu landing screen unchanged
-- All existing views continue to work — they're just hosted inside the new column layout on iPad
+**Automation Engine**
+- Use cache service to persist every captured screenshot to disk
+- Log screenshot dimensions and file size after capture
+
+**View Model**
+- Load persisted screenshots from disk on init
+- Cap in-memory screenshots at 500, but keep all on disk
+- Add method to load screenshot from disk on demand
+
+**Full Screenshot Viewer**
+- Replace basic ScrollView with pinch-to-zoom using MagnifyGesture
+- Add double-tap to toggle between fit and 1:1 zoom
+- Add share button to export screenshot
+
+**Screenshot Tile & Card Views**
+- Load thumbnail from cache instead of full image
+- Show screenshot count per check in session rows

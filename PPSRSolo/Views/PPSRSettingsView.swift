@@ -368,8 +368,16 @@ struct PPSRSettingsView: View {
                     }
                 }
 
+                HStack {
+                    Image(systemName: "internaldrive").foregroundStyle(.secondary)
+                    Text("Disk Cache")
+                    Spacer()
+                    Text("\(ScreenshotCacheService.shared.diskCacheSize) · \(ScreenshotCacheService.shared.screenshotCount) files")
+                        .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                }
+
                 if !vm.debugScreenshots.isEmpty {
-                    Button(role: .destructive) { vm.debugScreenshots.removeAll() } label: { Label("Clear All Screenshots", systemImage: "trash") }
+                    Button(role: .destructive) { vm.clearDebugScreenshots() } label: { Label("Clear All Screenshots", systemImage: "trash") }
                 }
             }
             NavigationLink {

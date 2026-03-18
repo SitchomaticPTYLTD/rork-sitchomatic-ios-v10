@@ -130,13 +130,16 @@ class PPSRAutomationViewModel {
     private let sessionHeartbeatTimeout: TimeInterval = 90
     private let dohService = PPSRDoHService.shared
 
+    private let screenshotCache = ScreenshotCacheService.shared
+
     init() {
         engine.onScreenshot = { [weak self] screenshot in
             guard let self else { return }
             self.debugScreenshots.insert(screenshot, at: 0)
-            if self.debugScreenshots.count > 2000 {
-                self.debugScreenshots = Array(self.debugScreenshots.prefix(2000))
+            if self.debugScreenshots.count > 500 {
+                self.debugScreenshots = Array(self.debugScreenshots.prefix(500))
             }
+            self.persistScreenshotMetadata()
         }
         engine.onConnectionFailure = { [weak self] detail in
             self?.notifications.sendConnectionFailure(detail: detail)
@@ -160,6 +163,7 @@ class PPSRAutomationViewModel {
         }
         notifications.requestPermission()
         loadPersistedData()
+        loadPersistedScreenshots()
         batchPresets = presetService.loadPresets()
         schedules = scheduler.schedules
         scheduler.onScheduleTriggered = { [weak self] schedule in
@@ -556,7 +560,35 @@ class PPSRAutomationViewModel {
     func clearDebugScreenshots() {
         let count = debugScreenshots.count
         debugScreenshots.removeAll()
-        log("Cleared \(count) debug screenshots")
+        screenshotCache.clearAll()
+        log("Cleared \(count) debug screenshots and disk cache")
+    }
+
+    private var screenshotMetadataSaveTask: Task<Void, Never>?
+
+    private func persistScreenshotMetadata() {
+        screenshotMetadataSaveTask?.cancel()
+        screenshotMetadataSaveTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            screenshotCache.saveDebugScreenshotMetadata(debugScreenshots)
+        }
+    }
+
+    func loadPersistedScreenshots() {
+        let restored = screenshotCache.loadDebugScreenshotMetadata()
+        if !restored.isEmpty {
+            debugScreenshots = restored
+            log("Restored \(restored.count) screenshots from disk", level: .info)
+        }
+    }
+
+    func thumbnailForScreenshot(_ screenshot: PPSRDebugScreenshot) -> UIImage? {
+        screenshotCache.loadDebugScreenshotThumbnail(id: screenshot.id)
+    }
+
+    func fullImageForScreenshot(_ screenshot: PPSRDebugScreenshot) -> UIImage {
+        screenshotCache.loadDebugScreenshotImage(id: screenshot.id) ?? screenshot.image
     }
 
     func correctResult(for screenshot: PPSRDebugScreenshot, override: UserResultOverride) {

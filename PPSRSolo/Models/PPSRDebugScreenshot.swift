@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import UIKit
+import SwiftUI
 
 nonisolated enum UserResultOverride: String, Sendable {
     case none
@@ -65,6 +65,20 @@ class PPSRDebugScreenshot: Identifiable {
         self.autoDetectedResult = autoDetectedResult
     }
 
+    init(restoredId: String, restoredTimestamp: Date, stepName: String, cardDisplayNumber: String, cardId: String = "", vin: String, email: String = "", image: UIImage, croppedImage: UIImage? = nil, note: String = "", autoDetectedResult: AutoDetectedResult = .unknown) {
+        self.id = restoredId
+        self.timestamp = restoredTimestamp
+        self.stepName = stepName
+        self.cardDisplayNumber = cardDisplayNumber
+        self.cardId = cardId
+        self.vin = vin
+        self.email = email
+        self.image = image
+        self.croppedImage = croppedImage
+        self.note = note
+        self.autoDetectedResult = autoDetectedResult
+    }
+
     var formattedTime: String {
         DateFormatters.timeOnly.string(from: timestamp)
     }
@@ -78,6 +92,22 @@ class PPSRDebugScreenshot: Identifiable {
         case .none: "Auto"
         case .markedPass: "Marked Pass"
         case .markedFail: "Marked Fail"
+        }
+    }
+
+    var statusIcon: String {
+        switch effectiveResult {
+        case .markedPass: "checkmark.circle.fill"
+        case .markedFail: "xmark.circle.fill"
+        case .none: "questionmark.circle.fill"
+        }
+    }
+
+    var statusColor: Color {
+        switch effectiveResult {
+        case .markedPass: .green
+        case .markedFail: .red
+        case .none: .secondary
         }
     }
 }
