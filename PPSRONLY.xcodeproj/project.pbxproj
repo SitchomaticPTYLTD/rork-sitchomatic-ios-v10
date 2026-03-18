@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BB000D002E9EAD3200EA8BCD /* PPSRWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BB0001002E9EAD3200EA8BC1 /* PPSRWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		105FC58A2E9EAD3200EA8BCF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,12 +25,34 @@
 			remoteGlobalIDString = 105FC5792E9EAD3100EA8BCF;
 			remoteInfo = DualModeCarCheckApp;
 		};
+		BB000B002E9EAD3200EA8BCB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 105FC5722E9EAD3100EA8BCF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BB0006002E9EAD3200EA8BC6;
+			remoteInfo = PPSRWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BB0007002E9EAD3200EA8BC7 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BB000D002E9EAD3200EA8BCD /* PPSRWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		105FC57A2E9EAD3100EA8BCF /* DualModeCarCheckApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DualModeCarCheckApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		105FC5892E9EAD3200EA8BCF /* DualModeCarCheckAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DualModeCarCheckAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		105FC5932E9EAD3200EA8BCF /* DualModeCarCheckAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DualModeCarCheckAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB0001002E9EAD3200EA8BC1 /* PPSRWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PPSRWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -45,10 +71,22 @@
 			path = DualModeCarCheckAppUITests;
 			sourceTree = "<group>";
 		};
+		BB0002002E9EAD3200EA8BC2 /* PPSRWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PPSRWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		105FC5772E9EAD3100EA8BCF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB0004002E9EAD3200EA8BC4 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -76,6 +114,7 @@
 			isa = PBXGroup;
 			children = (
 				105FC57C2E9EAD3100EA8BCF /* DualModeCarCheckApp */,
+				BB0002002E9EAD3200EA8BC2 /* PPSRWidget */,
 				105FC58C2E9EAD3200EA8BCF /* DualModeCarCheckAppTests */,
 				105FC5962E9EAD3200EA8BCF /* DualModeCarCheckAppUITests */,
 				105FC57B2E9EAD3100EA8BCF /* Products */,
@@ -88,6 +127,7 @@
 				105FC57A2E9EAD3100EA8BCF /* DualModeCarCheckApp.app */,
 				105FC5892E9EAD3200EA8BCF /* DualModeCarCheckAppTests.xctest */,
 				105FC5932E9EAD3200EA8BCF /* DualModeCarCheckAppUITests.xctest */,
+				BB0001002E9EAD3200EA8BC1 /* PPSRWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -102,10 +142,12 @@
 				105FC5762E9EAD3100EA8BCF /* Sources */,
 				105FC5772E9EAD3100EA8BCF /* Frameworks */,
 				105FC5782E9EAD3100EA8BCF /* Resources */,
+				BB0007002E9EAD3200EA8BC7 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				BB000C002E9EAD3200EA8BCC /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				105FC57C2E9EAD3100EA8BCF /* DualModeCarCheckApp */,
@@ -163,6 +205,28 @@
 			productReference = 105FC5932E9EAD3200EA8BCF /* DualModeCarCheckAppUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		BB0006002E9EAD3200EA8BC6 /* PPSRWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB000A002E9EAD3200EA8BCA /* Build configuration list for PBXNativeTarget "PPSRWidgetExtension" */;
+			buildPhases = (
+				BB0003002E9EAD3200EA8BC3 /* Sources */,
+				BB0004002E9EAD3200EA8BC4 /* Frameworks */,
+				BB0005002E9EAD3200EA8BC5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BB0002002E9EAD3200EA8BC2 /* PPSRWidget */,
+			);
+			name = PPSRWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = PPSRWidgetExtension;
+			productReference = BB0001002E9EAD3200EA8BC1 /* PPSRWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +248,9 @@
 						CreatedOnToolsVersion = 26.0;
 						TestTargetID = 105FC5792E9EAD3100EA8BCF;
 					};
+					BB0006002E9EAD3200EA8BC6 = {
+						CreatedOnToolsVersion = 26.0;
+					};
 				};
 			};
 			buildConfigurationList = 105FC5752E9EAD3100EA8BCF /* Build configuration list for PBXProject "PPSRONLY" */;
@@ -201,6 +268,7 @@
 			projectRoot = "";
 			targets = (
 				105FC5792E9EAD3100EA8BCF /* PPSRONLY */,
+				BB0006002E9EAD3200EA8BC6 /* PPSRWidgetExtension */,
 				105FC5882E9EAD3200EA8BCF /* PPSRONLY */,
 				105FC5922E9EAD3200EA8BCF /* PPSRONLY */,
 			);
@@ -209,6 +277,13 @@
 
 /* Begin PBXResourcesBuildPhase section */
 		105FC5782E9EAD3100EA8BCF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB0005002E9EAD3200EA8BC5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -233,6 +308,13 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		105FC5762E9EAD3100EA8BCF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB0003002E9EAD3200EA8BC3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -265,6 +347,11 @@
 			isa = PBXTargetDependency;
 			target = 105FC5792E9EAD3100EA8BCF /* PPSRONLY */;
 			targetProxy = 105FC5942E9EAD3200EA8BCF /* PBXContainerItemProxy */;
+		};
+		BB000C002E9EAD3200EA8BCC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BB0006002E9EAD3200EA8BC6 /* PPSRWidgetExtension */;
+			targetProxy = BB000B002E9EAD3200EA8BCB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -410,6 +497,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -445,6 +533,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -548,6 +637,62 @@
 			};
 			name = Release;
 		};
+		BB0008002E9EAD3200EA8BC8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "PPSR Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = PPSR.iOS.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BB0009002E9EAD3200EA8BC9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "PPSR Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = PPSR.iOS.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -583,6 +728,15 @@
 			buildConfigurations = (
 				105FC5A42E9EAD3200EA8BCF /* Debug */,
 				105FC5A52E9EAD3200EA8BCF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BB000A002E9EAD3200EA8BCA /* Build configuration list for PBXNativeTarget "PPSRWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB0008002E9EAD3200EA8BC8 /* Debug */,
+				BB0009002E9EAD3200EA8BC9 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

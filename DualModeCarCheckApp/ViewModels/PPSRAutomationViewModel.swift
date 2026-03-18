@@ -115,6 +115,8 @@ class PPSRAutomationViewModel {
     private let presetService = BatchPresetService.shared
     private let scheduler = TestSchedulerService.shared
     private let backgroundService = BackgroundTaskService.shared
+    private let liveActivity = PPSRLiveActivityService.shared
+    private var liveActivityUpdateTask: Task<Void, Never>?
     private var batchTask: Task<Void, Never>?
     private var settingsSaveTask: Task<Void, Never>?
     private var cardsSaveTask: Task<Void, Never>?
@@ -672,6 +674,8 @@ class PPSRAutomationViewModel {
         isRunning = true
         startHeartbeatMonitor()
         backgroundService.beginExtendedBackgroundExecution(reason: "PPSR batch test")
+        liveActivity.startBatchActivity(totalCards: cardsToTest.count)
+        startLiveActivityUpdates()
         persistence.saveTestQueue(cardIds: cardsToTest.map(\.id))
 
         var batchWorking = 0
@@ -821,6 +825,8 @@ class PPSRAutomationViewModel {
         isRunning = true
         startHeartbeatMonitor()
         backgroundService.beginExtendedBackgroundExecution(reason: "PPSR selected card test")
+        liveActivity.startBatchActivity(totalCards: cardsToTest.count)
+        startLiveActivityUpdates()
         persistence.saveTestQueue(cardIds: cardsToTest.map(\.id))
 
         var batchWorking = 0
@@ -897,6 +903,15 @@ class PPSRAutomationViewModel {
         isStopping = false
 
         resetStuckTestingCards()
+        stopLiveActivityUpdates()
+        liveActivity.endActivity(
+            working: working,
+            dead: dead,
+            requeued: requeued,
+            totalCards: working + dead + requeued,
+            elapsed: batchElapsedSeconds,
+            wasStopped: stoppedEarly
+        )
         backgroundService.endExtendedBackgroundExecution()
 
         let batchDuration = batchStartTime.map { Date().timeIntervalSince($0) } ?? 0
@@ -1135,5 +1150,30 @@ class PPSRAutomationViewModel {
 
     func copyCardToClipboard(_ card: PPSRCard) {
         UIPasteboard.general.string = card.pipeFormat
+    }
+
+    private func startLiveActivityUpdates() {
+        liveActivityUpdateTask?.cancel()
+        liveActivityUpdateTask = Task {
+            while !Task.isCancelled && isRunning {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled, isRunning else { break }
+                liveActivity.updateActivity(
+                    totalCards: batchTotalCards,
+                    completedCards: batchCompletedCards,
+                    working: batchWorkingLive,
+                    dead: batchDeadLive,
+                    requeued: batchRequeuedLive,
+                    elapsedSeconds: batchElapsedSeconds,
+                    estimatedRemaining: batchEstimatedSecondsRemaining,
+                    cardsPerMinute: batchCardsPerMinute
+                )
+            }
+        }
+    }
+
+    private func stopLiveActivityUpdates() {
+        liveActivityUpdateTask?.cancel()
+        liveActivityUpdateTask = nil
     }
 }
