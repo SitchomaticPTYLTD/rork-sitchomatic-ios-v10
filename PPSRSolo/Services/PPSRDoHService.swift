@@ -84,7 +84,7 @@ class PPSRDoHService {
     }
 
     func nextProvider() -> DoHProvider {
-        let healthy = managedProviders.filter { $0.isEnabled && $0.failCount < maxFailsBeforeSkip }
+        let healthy = managedProviders.filter { $0.isEnabled && !$0.autoDisabledBySystem && $0.failCount < maxFailsBeforeSkip }
         let active = healthy.isEmpty ? providers : healthy.map { DoHProvider(name: $0.name, url: $0.url) }
         guard !active.isEmpty else { return DoHProvider(name: "Cloudflare", url: "https://cloudflare-dns.com/dns-query") }
         let provider = active[providerIndex % active.count]
@@ -259,21 +259,34 @@ class PPSRDoHService {
         persistManagedProviders()
     }
 
+    func reEnableAutoDisabled() {
+        for i in managedProviders.indices where managedProviders[i].autoDisabledBySystem {
+            managedProviders[i].isEnabled = true
+            managedProviders[i].failCount = 0
+            managedProviders[i].autoDisabledBySystem = false
+            managedProviders[i].lastTestStatus = .untested
+        }
+        persistManagedProviders()
+    }
+
     func markProviderFailed(name: String) {
         guard let idx = managedProviders.firstIndex(where: { $0.name == name }) else { return }
+        if managedProviders[idx].autoDisabledBySystem { return }
         managedProviders[idx].failCount += 1
         if managedProviders[idx].failCount >= maxFailsBeforeSkip && managedProviders[idx].isEnabled {
             managedProviders[idx].isEnabled = false
             managedProviders[idx].autoDisabledBySystem = true
             managedProviders[idx].lastTestStatus = .autoDisabled
-            logger.log("DoH: auto-disabled \(name) after \(managedProviders[idx].failCount) consecutive failures", category: .dns, level: .warning)
+            logger.log("DoH: auto-disabled \(name) after \(managedProviders[idx].failCount) consecutive failures — stays disabled until Reset to Defaults", category: .dns, level: .warning)
             persistManagedProviders()
         }
     }
 
     func markProviderHealthy(name: String) {
         guard let idx = managedProviders.firstIndex(where: { $0.name == name }) else { return }
-        managedProviders[idx].failCount = 0
+        if !managedProviders[idx].autoDisabledBySystem {
+            managedProviders[idx].failCount = 0
+        }
     }
 
     func testAllProviders(hostname: String = "transact.ppsr.gov.au") async -> (passed: Int, failed: Int, autoDisabled: Int) {
@@ -308,8 +321,9 @@ class PPSRDoHService {
                 switch status {
                 case .passed:
                     passed += 1
-                    managedProviders[index].failCount = 0
-                    managedProviders[index].autoDisabledBySystem = false
+                    if !managedProviders[index].autoDisabledBySystem {
+                        managedProviders[index].failCount = 0
+                    }
                 case .failed:
                     failed += 1
                     managedProviders[index].failCount += 1
@@ -349,14 +363,18 @@ class PPSRDoHService {
     private func loadManagedProviders() {
         if let saved = UserDefaults.standard.array(forKey: persistKey) as? [[String: String]] {
             managedProviders = saved.map {
+                let wasAutoDisabled = $0["autoDisabled"] == "1"
                 var provider = ManagedDoHProvider(
                     name: $0["name"] ?? "Unknown",
                     url: $0["url"] ?? "",
-                    isEnabled: $0["enabled"] == "1",
+                    isEnabled: wasAutoDisabled ? false : ($0["enabled"] == "1"),
                     isDefault: $0["default"] == "1"
                 )
                 provider.failCount = Int($0["failCount"] ?? "0") ?? 0
-                provider.autoDisabledBySystem = $0["autoDisabled"] == "1"
+                provider.autoDisabledBySystem = wasAutoDisabled
+                if wasAutoDisabled {
+                    provider.lastTestStatus = .autoDisabled
+                }
                 return provider
             }
         } else {

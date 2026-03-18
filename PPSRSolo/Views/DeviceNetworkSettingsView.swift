@@ -89,20 +89,20 @@ struct DeviceNetworkSettingsView: View {
                 .buttonStyle(.plain)
                 .disabled(dnsService.isTestingAll)
 
-                if dnsTestComplete || dnsService.managedProviders.contains(where: { $0.autoDisabledBySystem }) {
+                if dnsService.managedProviders.contains(where: { $0.autoDisabledBySystem }) {
                     Button {
-                        dnsService.enableAll()
+                        dnsService.resetToDefaults()
                         dnsTestComplete = false
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.counterclockwise")
-                            Text("Re-enable")
+                            Text("Reset to Default")
                                 .font(.subheadline.bold())
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
-                        .background(Color.green.opacity(0.12))
-                        .foregroundStyle(.green)
+                        .background(Color.orange.opacity(0.12))
+                        .foregroundStyle(.orange)
                         .clipShape(.rect(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
